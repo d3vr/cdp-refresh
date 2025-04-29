@@ -97,10 +97,10 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
 
 **Phase 7: Refinement & Testing**
 
-23. [ ] **Manual Testing:**
-    *   [ ] Launch Chrome with remote debugging.
-    *   [ ] Run the tool, select a tab.
-    *   [ ] Modify a file in the watched directory. Verify the tab reloads.
+23. [X] **Manual Testing:**
+    *   [X] Launch Chrome with remote debugging.
+    *   [X] Run the tool, select a tab.
+    *   [X] Modify a file in the watched directory. Verify the tab reloads.
     *   [ ] Use the `choose-tab` command to select a different tab. Verify reload works on the new tab.
     *   [ ] Use the `exit` command. Verify clean shutdown.
     *   [ ] Test edge cases (invalid path, browser closed, invalid CDP endpoint).

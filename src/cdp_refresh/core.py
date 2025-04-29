@@ -201,11 +201,11 @@ class App:
         print("Background tasks cancelled.")
 
 
-async def run_app(watch_path: str, cdp_endpoint: str):
+async def run_app(watch_path: str, cdp_port: int): # Changed cdp_endpoint to cdp_port
     """Sets up and runs the application, handling top-level exceptions."""
     app = None # Ensure app is defined for finally block
     try:
-        app = App(watch_path, cdp_endpoint)
+        app = App(watch_path, cdp_port) # Changed cdp_endpoint to cdp_port
         await app.run()
     except (KeyboardInterrupt, asyncio.CancelledError):
         print("\nApplication interrupted.")

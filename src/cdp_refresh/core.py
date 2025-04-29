@@ -20,7 +20,7 @@ from .watcher import watch_directory
 class App:
     """Orchestrates the CDP Refresh tool components."""
 
-    def __init__(self, watch_path: str, cdp_endpoint: str):
+    def __init__(self, watch_path: str, cdp_port: int):
         """Initializes the App orchestrator."""
         try:
             # Resolve and validate watch path immediately
@@ -35,9 +35,11 @@ class App:
             print(f"Error resolving watch path '{watch_path}': {e}", file=sys.stderr)
             sys.exit(1)
 
-        self.cdp_endpoint = cdp_endpoint
-        # Pass self.shutdown as the callback to BrowserManager
-        self.browser_manager = BrowserManager(cdp_endpoint, shutdown_callback=self.shutdown)
+        # Construct the endpoint URL from the port
+        self.cdp_port = cdp_port
+        self.cdp_endpoint = f"ws://127.0.0.1:{cdp_port}"
+        # Pass the constructed endpoint URL and self.shutdown callback to BrowserManager
+        self.browser_manager = BrowserManager(self.cdp_endpoint, shutdown_callback=self.shutdown)
         self._shutdown_event = asyncio.Event() # Used to signal shutdown across tasks
         self._tasks: Set[asyncio.Task] = set() # Keep track of running tasks
 
@@ -103,7 +105,7 @@ class App:
         """Runs the main application logic: connect, select tab, start tasks."""
         print(f"Starting CDP Refresh:")
         print(f"  Watching: '{self.watch_path}'")
-        print(f"  Endpoint: '{self.cdp_endpoint}'")
+        print(f"  Connecting to CDP on port: {self.cdp_port} (Endpoint: {self.cdp_endpoint})")
         print("-" * 20)
 
         # 1. Connect to Browser

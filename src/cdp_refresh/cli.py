@@ -22,15 +22,15 @@ app = typer.Typer(
 @app.command()
 def main(
     watch_path: str = typer.Argument(..., help="Directory path to watch for file changes."),
-    cdp_endpoint: str = typer.Option(
-        "ws://127.0.0.1:9222",
-        "--cdp-endpoint",
-        "-c",
-        help="Chrome DevTools Protocol endpoint URL.",
+    cdp_port: int = typer.Option(
+        9222,
+        "--cdp-port",
+        "-p", # Changed short flag
+        help="Chrome DevTools Protocol port (assumes host is 127.0.0.1).",
     ),
 ):
     """
-    Connects to a running Chrome/Chromium instance via CDP,
+    Connects to a running Chrome/Chromium instance via CDP (on 127.0.0.1),
     watches a directory for file changes, and reloads a selected tab.
     """
     # Basic validation (core.py does more thorough path validation)
@@ -39,7 +39,8 @@ def main(
         raise typer.Exit(code=1)
 
     try:
-        asyncio.run(run_app(watch_path=watch_path, cdp_endpoint=cdp_endpoint))
+        # Pass the port directly to the core application logic
+        asyncio.run(run_app(watch_path=watch_path, cdp_port=cdp_port))
     except KeyboardInterrupt:
         print("\nInterrupted by user. Exiting.")
         # asyncio.run should handle cleanup of the event loop,

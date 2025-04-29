@@ -11,8 +11,8 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
 2.  [X] **Update `pyproject.toml`:**
     *   [X] Add `playwright`, `watchfiles`, `prompt_toolkit`, `typer[all]` to `[project.dependencies]`.
     *   [X] Configure project entry points if using `typer` or for `python -m`.
-3.  [ ] **Install Dependencies (using `uv`):**
-    *   [ ] Create a virtual environment (e.g., `uv venv`).
+3.  [X] **Install Dependencies (using `uv`):**
+    *   [X] Create a virtual environment (e.g., `uv venv`).
     *   [ ] Activate the virtual environment.
     *   [ ] Install the project in editable mode and its dependencies: `uv pip install -e .` (or `uv sync` if generating lock files).
     *   [ ] Run `playwright install chromium` (or just `playwright install` if needed).
@@ -110,4 +110,3 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
     *   [ ] Finalize installation and usage instructions (including `uv`).
     *   [ ] Add examples.
     *   [ ] Document REPL commands.
-

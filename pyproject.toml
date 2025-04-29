@@ -9,6 +9,7 @@ dependencies = [
     "watchfiles>=0.20", # Using a recent version
     "prompt-toolkit>=3.0",
     "typer[all]>=0.9", # Using typer with rich support
+    "aiohttp>=3.9", # For fetching CDP target URL
 ]
 
 [project.scripts]

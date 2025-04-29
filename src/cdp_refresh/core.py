@@ -52,26 +52,22 @@ class App:
                     response.raise_for_status() # Raise exception for bad status codes
                     targets = await response.json()
 
-                    # Find the first target of type 'page' or 'browser'
-                    # Prefer 'browser' if available, otherwise take the first 'page'
+                    # Find the target of type 'browser'
                     browser_target = None
-                    page_target = None
                     for target in targets:
-                        if target.get("type") == "browser":
+                        if target.get("type") == "browser" and "webSocketDebuggerUrl" in target:
                             browser_target = target
                             break # Found the main browser target
-                        if target.get("type") == "page" and not page_target:
-                            page_target = target # Keep the first page target found
 
-                    target_to_use = browser_target or page_target
-
-                    if target_to_use and "webSocketDebuggerUrl" in target_to_use:
-                        target_url = target_to_use["webSocketDebuggerUrl"]
-                        print(f"Found CDP target URL: {target_url}")
+                    if browser_target:
+                        target_url = browser_target["webSocketDebuggerUrl"]
+                        print(f"Found browser CDP target URL: {target_url}")
                         return target_url
                     else:
-                        print("Error: No suitable CDP target (type 'browser' or 'page' with webSocketDebuggerUrl) found.", file=sys.stderr)
-                        print(f"Available targets: {targets}", file=sys.stderr)
+                        print("Error: No suitable CDP target with type 'browser' found.", file=sys.stderr)
+                        print("Ensure Chrome was launched with --remote-debugging-port and is accessible.", file=sys.stderr)
+                        # Optionally print available targets for debugging
+                        # print(f"Available targets: {targets}", file=sys.stderr)
                         return None
 
         except aiohttp.ClientConnectorError as e:

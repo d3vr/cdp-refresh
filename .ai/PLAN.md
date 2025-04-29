@@ -65,12 +65,12 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
 15. [ ] **Setup Async REPL:**
     *   [ ] Create an async function `run_repl(browser_manager)` (where `browser_manager` is an object or module providing access to browser functions like listing/selecting tabs).
     *   [ ] Use `prompt_toolkit.PromptSession().prompt_async("> ")` in an async loop.
-16. [ ] **Implement `choose-tab` Command:**
-    *   [ ] If input is `choose-tab`:
-        *   [ ] Call the tab listing function from `browser.py`.
-        *   [ ] Prompt the user to select a tab by index.
-        *   [ ] Validate input.
-        *   [ ] Call the target page selection function from `browser.py` with the chosen page.
+16. [X] **Implement `choose-tab` Command:**
+    *   [X] If input is `choose-tab`:
+        *   [X] Call the tab listing function from `browser.py`.
+        *   [X] Prompt the user to select a tab by index.
+        *   [X] Validate input.
+        *   [X] Call the target page selection function from `browser.py` with the chosen page.
 17. [ ] **Implement `exit` Command:**
     *   [ ] If input is `exit`, break the REPL loop or signal shutdown.
 18. [ ] **Handle Unknown Commands:**

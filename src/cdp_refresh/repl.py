@@ -38,7 +38,35 @@ async def run_repl(browser_manager: "BrowserManager"):
             elif command == "exit":
                 print("Exiting REPL...")
                 break
-            # TODO: Implement 'choose-tab' and other commands (Steps 16-18)
+            elif command == "choose-tab":
+                pages = await browser_manager.list_pages()
+                if not pages:
+                    print("No tabs found or error listing tabs.")
+                    continue
+
+                print("\nAvailable Tabs:")
+                for i, page in enumerate(pages):
+                    title = await page.title()
+                    print(f"  [{i}] {title} ({page.url})")
+
+                while True:
+                    try:
+                        index_str = await session.prompt_async("Enter tab index to target: ")
+                        if not index_str.strip(): # Allow empty input to cancel
+                            print("Tab selection cancelled.")
+                            break
+                        index = int(index_str)
+                        if browser_manager.set_target_page_by_index(index):
+                            break # Successfully set
+                        else:
+                            # Error message printed by set_target_page_by_index
+                            print(f"Please enter a number between 0 and {len(pages) - 1}.")
+                    except ValueError:
+                        print("Invalid input. Please enter a number.")
+                    except (EOFError, KeyboardInterrupt):
+                        print("\nTab selection cancelled.")
+                        break
+            # TODO: Implement other commands (Step 17: exit is done, Step 18: unknown is done)
             else:
                 print(f"Unknown command: {command}")
                 print("Available commands: choose-tab, exit")

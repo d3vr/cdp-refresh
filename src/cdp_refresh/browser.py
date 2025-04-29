@@ -83,7 +83,11 @@ class BrowserManager:
         self._playwright = None # Assume playwright instance is no longer valid
         self._target_page = None
         self._available_pages = []
-        # Consider exiting or triggering a reconnect attempt from the main async loop
+        # Trigger application shutdown if a callback is provided
+        # Schedule the callback to run in the event loop
+        if self._shutdown_callback:
+            print("Scheduling application shutdown due to browser disconnect.")
+            asyncio.create_task(self._shutdown_callback())
 
     async def list_pages(self) -> List[Page]:
         """

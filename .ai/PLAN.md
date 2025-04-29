@@ -80,20 +80,20 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
 
 19. [X] **Create Core Application Class/Module:**
     *   [X] Design a structure (e.g., an `App` class or functions in `core.py`) to hold state (connected browser, target page, watch path). (Created `App` class in `core.py`)
-20. [ ] **Implement Main Async Function:**
-    *   [ ] Create `async def run_app(watch_path, cdp_endpoint)`:
-        *   [ ] Connect to the browser (`browser.py`). Exit if connection fails.
-        *   [ ] Perform initial tab selection (call `repl.py`'s logic or a dedicated initial selection function). Exit if no tab selected.
-        *   [ ] Define the reload callback function (which calls `browser.reload_target_page`).
-        *   [ ] Create and run the file watcher task (`watcher.py`) using `asyncio.create_task`.
-        *   [ ] Create and run the REPL task (`repl.py`) using `asyncio.create_task`.
-        *   [ ] Use `asyncio.gather` or similar to run tasks concurrently and wait for completion/cancellation.
+20. [X] **Implement Main Async Function:**
+    *   [X] Create `async def run_app(watch_path, cdp_endpoint)`: (Implemented in `core.py`)
+        *   [X] Connect to the browser (`browser.py`). Exit if connection fails. (Implemented in `App.run`)
+        *   [X] Perform initial tab selection (call `repl.py`'s logic or a dedicated initial selection function). Exit if no tab selected. (Implemented via `App._initial_tab_selection`)
+        *   [X] Define the reload callback function (which calls `browser.reload_target_page`). (Implemented as `App._reload_callback`)
+        *   [X] Create and run the file watcher task (`watcher.py`) using `asyncio.create_task`. (Implemented in `App.run`, uses `_shutdown_event`)
+        *   [X] Create and run the REPL task (`repl.py`) using `asyncio.create_task`. (Implemented in `App.run`, uses `shutdown_callback`)
+        *   [X] Use `asyncio.gather` or similar to run tasks concurrently and wait for completion/cancellation. (Managed via `_shutdown_event.wait()` and `_tasks` set in `App.run`)
 21. [X] **Integrate with CLI (`cli.py`):**
     *   [X] Modify the `typer` function in `cli.py` to call `core.run_app` with the parsed arguments. Use `asyncio.run()`. (Implemented in `cli.py`)
 22. [ ] **Implement Graceful Shutdown:**
-    *   [ ] Handle `KeyboardInterrupt` and the `exit` command.
-    *   [ ] Ensure `asyncio` tasks are cancelled.
-    *   [ ] Close the Playwright browser connection (`browser.close()`).
+    *   [X] Handle `KeyboardInterrupt` and the `exit` command. (Handled via `shutdown_callback` in REPL, `_shutdown_event` in core, and `try/except` in `cli.py`)
+    *   [X] Ensure `asyncio` tasks are cancelled. (Implemented in `App.shutdown` and `App._cleanup_tasks`)
+    *   [X] Close the Playwright browser connection (`browser.close()`). (Implemented in `BrowserManager.disconnect`, called by `App.shutdown`)
 
 **Phase 7: Refinement & Testing**
 

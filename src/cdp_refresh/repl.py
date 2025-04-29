@@ -37,11 +37,16 @@ async def run_repl(browser_manager: "BrowserManager"):
                 continue
             elif command == "exit":
                 print("Exiting REPL...")
-                break
+                if shutdown_callback:
+                    await shutdown_callback() # Signal shutdown
+                break # Exit the loop regardless
             elif command == "choose-tab":
+                if not browser_manager.is_connected:
+                    print("Browser is not connected. Cannot list tabs.", file=sys.stderr)
+                    continue
                 pages = await browser_manager.list_pages()
                 if not pages:
-                    print("No tabs found or error listing tabs.")
+                    print("No open tabs found in the browser.")
                     continue
 
                 print("\nAvailable Tabs:")
@@ -72,14 +77,16 @@ async def run_repl(browser_manager: "BrowserManager"):
                 print("Available commands: choose-tab, exit")
 
         except (EOFError, KeyboardInterrupt):
-            print("\nExiting REPL...")
-            break
+            print("\nExiting REPL (Ctrl+D / Ctrl+C)...")
+            if shutdown_callback:
+                await shutdown_callback() # Signal shutdown
+            break # Exit the loop regardless
         except Exception as e:
-            print(f"\nAn error occurred in the REPL: {e}")
+            print(f"\nAn error occurred in the REPL: {e}", file=sys.stderr)
             # Decide if the REPL should continue or exit on other errors
-            await asyncio.sleep(1) # Prevent fast error loops
+            await asyncio.sleep(0.1) # Prevent fast error loops
 
-    # Signal shutdown or perform cleanup if needed when REPL exits
+    # This part is reached only if the loop breaks without calling shutdown_callback
+    # (e.g., if shutdown was initiated elsewhere)
     print("REPL finished.")
-    # In the core logic, the exit of this REPL might trigger app shutdown.
 

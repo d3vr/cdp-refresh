@@ -101,9 +101,9 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
     *   [X] Launch Chrome with remote debugging.
     *   [X] Run the tool, select a tab.
     *   [X] Modify a file in the watched directory. Verify the tab reloads.
-    *   [ ] Use the `choose-tab` command to select a different tab. Verify reload works on the new tab.
-    *   [ ] Use the `exit` command. Verify clean shutdown.
-    *   [ ] Test edge cases (invalid path, browser closed, invalid CDP endpoint).
+    *   [X] Use the `choose-tab` command to select a different tab. Verify reload works on the new tab.
+    *   [X] Use the `exit` command. Verify clean shutdown.
+    *   [X] Test edge cases (invalid path, browser closed, invalid CDP endpoint). (Performed manually)
 24. [ ] **Error Handling Review:**
     *   [ ] Ensure user-friendly error messages for common issues (connection failure, invalid input).
 25. [ ] **README Update:**

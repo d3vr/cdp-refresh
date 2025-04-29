@@ -78,8 +78,8 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
 
 **Phase 6: Orchestration & Integration (`core.py`)**
 
-19. [ ] **Create Core Application Class/Module:**
-    *   [ ] Design a structure (e.g., an `App` class or functions in `core.py`) to hold state (connected browser, target page, watch path).
+19. [X] **Create Core Application Class/Module:**
+    *   [X] Design a structure (e.g., an `App` class or functions in `core.py`) to hold state (connected browser, target page, watch path). (Created `App` class in `core.py`)
 20. [ ] **Implement Main Async Function:**
     *   [ ] Create `async def run_app(watch_path, cdp_endpoint)`:
         *   [ ] Connect to the browser (`browser.py`). Exit if connection fails.

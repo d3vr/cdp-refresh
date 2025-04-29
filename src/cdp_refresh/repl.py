@@ -55,19 +55,3 @@ async def run_repl(browser_manager: "BrowserManager"):
     print("REPL finished.")
     # In the core logic, the exit of this REPL might trigger app shutdown.
 
-```
-
-```markdown
-.ai/PLAN.md
-<<<<<<< SEARCH
-    *   [X] Ensure it handles different change types appropriately (any change triggers reload).
-
-**Phase 5: REPL Implementation (`repl.py`)**
-
-15. [ ] **Setup Async REPL:**
-    *   [ ] Create an async function `run_repl(browser_manager)` (where `browser_manager` is an object or module providing access to browser functions like listing/selecting tabs).
-    *   [ ] Use `prompt_toolkit.PromptSession().prompt_async("> ")` in an async loop.
-16. [ ] **Implement `choose-tab` Command:**
-    *   [ ] If input is `choose-tab`:
-        *   [ ] Call the tab listing function from `browser.py`.
-

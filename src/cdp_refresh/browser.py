@@ -8,11 +8,27 @@ from typing import List, Optional
 from playwright.async_api import Browser, Error, Page, Playwright, async_playwright
 
 
+from typing import List, Optional, Callable, Awaitable # Added Callable, Awaitable
+
+from playwright.async_api import Browser, Error, Page, Playwright, async_playwright
+
+# Type hint for an async callable with no arguments
+AsyncVoidCallback = Callable[[], Awaitable[None]]
+
+
 class BrowserManager:
     """Manages the connection and interaction with the browser via CDP."""
 
-    def __init__(self, cdp_url: str):
+    def __init__(self, cdp_url: str, shutdown_callback: Optional[AsyncVoidCallback] = None):
+        """
+        Initializes the BrowserManager.
+
+        Args:
+            cdp_url: The CDP endpoint URL.
+            shutdown_callback: An async function to call if the browser disconnects unexpectedly.
+        """
         self.cdp_url = cdp_url
+        self._shutdown_callback = shutdown_callback # Added
         self._playwright: Optional[Playwright] = None
         self._browser: Optional[Browser] = None
         self._target_page: Optional[Page] = None

@@ -2,7 +2,8 @@
 """Handles the asynchronous Read-Eval-Print Loop (REPL) using prompt_toolkit."""
 
 import asyncio
-from typing import TYPE_CHECKING
+import sys # Added sys
+from typing import TYPE_CHECKING, Optional, Callable, Awaitable # Added Optional, Callable, Awaitable
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
@@ -10,13 +11,17 @@ from prompt_toolkit.history import InMemoryHistory
 if TYPE_CHECKING:
     from .browser import BrowserManager
 
+# Type hint for an async callable with no arguments
+AsyncVoidCallback = Callable[[], Awaitable[None]]
 
-async def run_repl(browser_manager: "BrowserManager"):
+
+async def run_repl(browser_manager: "BrowserManager", shutdown_callback: Optional[AsyncVoidCallback] = None):
     """
     Runs the asynchronous REPL loop.
 
     Args:
         browser_manager: An instance of BrowserManager to interact with the browser.
+        shutdown_callback: An async function to call when the REPL requests shutdown.
     """
     history = InMemoryHistory()
     session = PromptSession(history=history)

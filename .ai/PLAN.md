@@ -46,9 +46,9 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
     *   [X] Add an optional argument for the `cdp_endpoint` (defaulting to `ws://127.0.0.1:9222`).
 11. [X] **Basic Application Runner (`cli.py`):**
     *   [X] In the main `typer` function, call the core application logic (which will eventually reside in `core.py`). For now, it can just print the arguments.
-12. [ ] **Create Module Entry Point (`__main__.py`):**
-    *   [ ] Create `src/cdp_refresh/__main__.py`.
-    *   [ ] Import and run the `typer` app from `cli.py`. This allows running via `python -m cdp_refresh`.
+12. [X] **Create Module Entry Point (`__main__.py`):**
+    *   [X] Create `src/cdp_refresh/__main__.py`.
+    *   [X] Import and run the `typer` app from `cli.py`. This allows running via `python -m cdp_refresh`.
 13. [X] **Configure `pyproject.toml` Entry Point:**
     *   [X] Add `[project.scripts]` section in `pyproject.toml` to create a console script (e.g., `cdp-refresh = "cdp_refresh.cli:app"` if using Typer's default app name).
 

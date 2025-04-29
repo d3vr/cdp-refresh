@@ -4,24 +4,24 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
 
 **Phase 1: Project Setup & Core Dependencies**
 
-1.  [ ] **Initialize Project Structure:**
-    *   [ ] Create `src/cdp_refresh/` directory.
-    *   [ ] Create `src/cdp_refresh/__init__.py`.
-    *   [ ] Create placeholder files: `src/cdp_refresh/cli.py`, `src/cdp_refresh/browser.py`, `src/cdp_refresh/watcher.py`, `src/cdp_refresh/repl.py`, `src/cdp_refresh/core.py`.
-2.  [ ] **Update `pyproject.toml`:**
-    *   [ ] Add `playwright`, `watchfiles`, `prompt_toolkit`, `typer[all]` to `[project.dependencies]`.
-    *   [ ] Configure project entry points if using `typer` or for `python -m`.
+1.  [X] **Initialize Project Structure:**
+    *   [X] Create `src/cdp_refresh/` directory.
+    *   [X] Create `src/cdp_refresh/__init__.py`.
+    *   [X] Create placeholder files: `src/cdp_refresh/cli.py`, `src/cdp_refresh/browser.py`, `src/cdp_refresh/watcher.py`, `src/cdp_refresh/repl.py`, `src/cdp_refresh/core.py`.
+2.  [X] **Update `pyproject.toml`:**
+    *   [X] Add `playwright`, `watchfiles`, `prompt_toolkit`, `typer[all]` to `[project.dependencies]`.
+    *   [X] Configure project entry points if using `typer` or for `python -m`.
 3.  [ ] **Install Dependencies (using `uv`):**
     *   [ ] Create a virtual environment (e.g., `uv venv`).
     *   [ ] Activate the virtual environment.
     *   [ ] Install the project in editable mode and its dependencies: `uv pip install -e .` (or `uv sync` if generating lock files).
     *   [ ] Run `playwright install chromium` (or just `playwright install` if needed).
-4.  [ ] **Update `.gitignore`:**
-    *   [ ] Add common Python ignores (`__pycache__`, virtual environment folders like `.venv`, build artifacts like `dist/`, `*.egg-info/`). Ensure `.venv` (or your chosen venv name) is included.
-5.  [ ] **Update `README.md`:**
-    *   [ ] Add basic project description.
-    *   [ ] Add **critical** instructions on how to launch Chrome/Chromium with the remote debugging port enabled (e.g., `google-chrome --remote-debugging-port=9222`).
-    *   [ ] Add installation instructions using `uv` (creating venv, installing dependencies).
+4.  [X] **Update `.gitignore`:**
+    *   [X] Add common Python ignores (`__pycache__`, virtual environment folders like `.venv`, build artifacts like `dist/`, `*.egg-info/`). Ensure `.venv` (or your chosen venv name) is included.
+5.  [X] **Update `README.md`:**
+    *   [X] Add basic project description.
+    *   [X] Add **critical** instructions on how to launch Chrome/Chromium with the remote debugging port enabled (e.g., `google-chrome --remote-debugging-port=9222`).
+    *   [X] Add installation instructions using `uv` (creating venv, installing dependencies).
 
 **Phase 2: Core Browser Interaction (`browser.py`)**
 
@@ -41,16 +41,16 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
 **Phase 3: Command Line Interface & Entry Point (`cli.py`, `__main__.py`)**
 
 10. [ ] **Define CLI Arguments (`cli.py`):**
-    *   [ ] Use `typer` to create a main CLI function.
-    *   [ ] Add an argument for the `watch_path` (directory to monitor).
-    *   [ ] Add an optional argument for the `cdp_endpoint` (defaulting to `ws://127.0.0.1:9222`).
+    *   [X] Use `typer` to create a main CLI function.
+    *   [X] Add an argument for the `watch_path` (directory to monitor).
+    *   [X] Add an optional argument for the `cdp_endpoint` (defaulting to `ws://127.0.0.1:9222`).
 11. [ ] **Basic Application Runner (`cli.py`):**
-    *   [ ] In the main `typer` function, call the core application logic (which will eventually reside in `core.py`). For now, it can just print the arguments.
+    *   [X] In the main `typer` function, call the core application logic (which will eventually reside in `core.py`). For now, it can just print the arguments.
 12. [ ] **Create Module Entry Point (`__main__.py`):**
     *   [ ] Create `src/cdp_refresh/__main__.py`.
     *   [ ] Import and run the `typer` app from `cli.py`. This allows running via `python -m cdp_refresh`.
 13. [ ] **Configure `pyproject.toml` Entry Point:**
-    *   [ ] Add `[project.scripts]` section in `pyproject.toml` to create a console script (e.g., `cdp-refresh = "cdp_refresh.cli:app"` if using Typer's default app name).
+    *   [X] Add `[project.scripts]` section in `pyproject.toml` to create a console script (e.g., `cdp-refresh = "cdp_refresh.cli:app"` if using Typer's default app name).
 
 **Phase 4: File Watching (`watcher.py`)**
 

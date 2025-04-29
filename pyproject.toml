@@ -1,7 +1,29 @@
 [project]
 name = "cdp-refresh"
 version = "0.1.0"
-description = "Add your description here"
+description = "A tool to watch local file changes and refresh a specific Chrome tab via CDP."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "playwright>=1.40", # Using a recent version
+    "watchfiles>=0.20", # Using a recent version
+    "prompt-toolkit>=3.0",
+    "typer[all]>=0.9", # Using typer with rich support
+]
+
+[project.scripts]
+cdp-refresh = "cdp_refresh.cli:app"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+# Optional: Tool-specific configurations if needed later
+# [tool.pytest.ini_options]
+# pythonpath = ["src"]
+# testpaths = ["tests"]
+
+# [tool.ruff]
+# line-length = 88
+# select = ["E", "F", "W", "I", "UP", "PL", "T20"] # Example linter rules
+

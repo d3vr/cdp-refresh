@@ -54,11 +54,11 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
 
 **Phase 4: File Watching (`watcher.py`)**
 
-14. [ ] **Implement Async Watcher:**
-    *   [ ] Create an async function `watch_directory(path, callback)`.
-    *   [ ] Use `watchfiles.awatch` to monitor the `path`.
-    *   [ ] On detecting changes, call the provided async `callback` function.
-    *   [ ] Ensure it handles different change types appropriately (if needed, though any change likely triggers reload).
+14. [X] **Implement Async Watcher:**
+    *   [X] Create an async function `watch_directory(path, callback)`.
+    *   [X] Use `watchfiles.awatch` to monitor the `path`.
+    *   [X] On detecting changes, call the provided async `callback` function.
+    *   [X] Ensure it handles different change types appropriately (any change triggers reload).
 
 **Phase 5: REPL Implementation (`repl.py`)**
 

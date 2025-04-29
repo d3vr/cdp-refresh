@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Optional, Set
 
+import aiohttp # Added import
 # Use prompt_toolkit only for initial selection if needed, REPL handles its own
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
@@ -35,13 +36,57 @@ class App:
             print(f"Error resolving watch path '{watch_path}': {e}", file=sys.stderr)
             sys.exit(1)
 
-        # Construct the endpoint URL from the port
         self.cdp_port = cdp_port
-        self.cdp_endpoint = f"ws://127.0.0.1:{cdp_port}"
-        # Pass the constructed endpoint URL and self.shutdown callback to BrowserManager
-        self.browser_manager = BrowserManager(self.cdp_endpoint, shutdown_callback=self.shutdown)
+        # BrowserManager will be initialized later in run() after fetching the target URL
+        self.browser_manager: Optional[BrowserManager] = None
         self._shutdown_event = asyncio.Event() # Used to signal shutdown across tasks
         self._tasks: Set[asyncio.Task] = set() # Keep track of running tasks
+
+    async def _get_cdp_target_url(self) -> Optional[str]:
+        """Fetches the CDP target URL from the browser's JSON endpoint."""
+        json_url = f"http://127.0.0.1:{self.cdp_port}/json"
+        print(f"Fetching CDP targets from: {json_url}")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(json_url, timeout=10) as response:
+                    response.raise_for_status() # Raise exception for bad status codes
+                    targets = await response.json()
+
+                    # Find the first target of type 'page' or 'browser'
+                    # Prefer 'browser' if available, otherwise take the first 'page'
+                    browser_target = None
+                    page_target = None
+                    for target in targets:
+                        if target.get("type") == "browser":
+                            browser_target = target
+                            break # Found the main browser target
+                        if target.get("type") == "page" and not page_target:
+                            page_target = target # Keep the first page target found
+
+                    target_to_use = browser_target or page_target
+
+                    if target_to_use and "webSocketDebuggerUrl" in target_to_use:
+                        target_url = target_to_use["webSocketDebuggerUrl"]
+                        print(f"Found CDP target URL: {target_url}")
+                        return target_url
+                    else:
+                        print("Error: No suitable CDP target (type 'browser' or 'page' with webSocketDebuggerUrl) found.", file=sys.stderr)
+                        print(f"Available targets: {targets}", file=sys.stderr)
+                        return None
+
+        except aiohttp.ClientConnectorError as e:
+            print(f"Error connecting to {json_url}: {e}", file=sys.stderr)
+            print("Is the browser running with the correct remote debugging port?", file=sys.stderr)
+            return None
+        except aiohttp.ClientResponseError as e:
+             print(f"Error fetching CDP targets from {json_url}: HTTP {e.status} {e.message}", file=sys.stderr)
+             return None
+        except asyncio.TimeoutError:
+             print(f"Timeout connecting to {json_url}", file=sys.stderr)
+             return None
+        except Exception as e:
+            print(f"An unexpected error occurred while fetching CDP target URL: {e}", file=sys.stderr)
+            return None
 
     async def _initial_tab_selection(self) -> bool:
         """Guides the user through selecting the initial target tab."""
@@ -105,15 +150,22 @@ class App:
         """Runs the main application logic: connect, select tab, start tasks."""
         print(f"Starting CDP Refresh:")
         print(f"  Watching: '{self.watch_path}'")
-        print(f"  Connecting to CDP on port: {self.cdp_port} (Endpoint: {self.cdp_endpoint})")
+        print(f"  Using CDP port: {self.cdp_port}")
         print("-" * 20)
 
-        # 1. Connect to Browser
+        # 1. Get CDP Target URL
+        target_url = await self._get_cdp_target_url()
+        if not target_url:
+            print("Could not determine CDP target URL. Exiting.", file=sys.stderr)
+            return # Exit if we can't get the URL
+
+        # 2. Initialize and Connect BrowserManager
+        self.browser_manager = BrowserManager(target_url, shutdown_callback=self.shutdown)
         if not await self.browser_manager.connect():
             # Error message printed by connect()
             return # Exit if connection fails
 
-        # 2. Initial Tab Selection
+        # 3. Initial Tab Selection
         if not await self._initial_tab_selection():
             print("No initial tab selected. Exiting.")
             await self.shutdown() # Ensure cleanup even if no tab selected
@@ -127,7 +179,7 @@ class App:
         print("-" * 20)
 
 
-        # 3. Define and Start Background Tasks
+        # 4. Define and Start Background Tasks
         try:
             watcher_task = asyncio.create_task(
                 watch_directory(self.watch_path, self._reload_callback, self._shutdown_event)

@@ -88,8 +88,8 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
         *   [ ] Create and run the file watcher task (`watcher.py`) using `asyncio.create_task`.
         *   [ ] Create and run the REPL task (`repl.py`) using `asyncio.create_task`.
         *   [ ] Use `asyncio.gather` or similar to run tasks concurrently and wait for completion/cancellation.
-21. [ ] **Integrate with CLI (`cli.py`):**
-    *   [ ] Modify the `typer` function in `cli.py` to call `core.run_app` with the parsed arguments. Use `asyncio.run()`.
+21. [X] **Integrate with CLI (`cli.py`):**
+    *   [X] Modify the `typer` function in `cli.py` to call `core.run_app` with the parsed arguments. Use `asyncio.run()`. (Implemented in `cli.py`)
 22. [ ] **Implement Graceful Shutdown:**
     *   [ ] Handle `KeyboardInterrupt` and the `exit` command.
     *   [ ] Ensure `asyncio` tasks are cancelled.

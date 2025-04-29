@@ -13,9 +13,9 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
     *   [X] Configure project entry points if using `typer` or for `python -m`.
 3.  [X] **Install Dependencies (using `uv`):**
     *   [X] Create a virtual environment (e.g., `uv venv`).
-    *   [ ] Activate the virtual environment.
-    *   [ ] Install the project in editable mode and its dependencies: `uv pip install -e .` (or `uv sync` if generating lock files).
-    *   [ ] Run `playwright install chromium` (or just `playwright install` if needed).
+    *   [X] Activate the virtual environment.
+    *   [X] Install the project in editable mode and its dependencies: `uv pip install -e .` (or `uv sync` if generating lock files).
+    *   [X] Run `playwright install chromium` (or just `playwright install` if needed).
 4.  [X] **Update `.gitignore`:**
     *   [X] Add common Python ignores (`__pycache__`, virtual environment folders like `.venv`, build artifacts like `dist/`, `*.egg-info/`). Ensure `.venv` (or your chosen venv name) is included.
 5.  [X] **Update `README.md`:**
@@ -25,31 +25,31 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
 
 **Phase 2: Core Browser Interaction (`browser.py`)**
 
-6.  [ ] **Implement CDP Connection:**
-    *   [ ] Create an async function `connect_to_browser(cdp_url)` that uses `playwright.chromium.connect_over_cdp()`.
-    *   [ ] Handle potential connection errors gracefully (e.g., `playwright._impl._api_types.Error`).
-7.  [ ] **Implement Tab Listing:**
-    *   [ ] Create an async function `get_available_pages(browser)` that retrieves all open pages/tabs (`browser.contexts()[0].pages`).
-    *   [ ] Format the output nicely (e.g., index, title, URL).
-8.  [ ] **Implement Target Page Selection:**
-    *   [ ] Store the selected `Page` object.
-    *   [ ] Create a function `set_target_page(page)`.
-9.  [ ] **Implement Page Reload:**
-    *   [ ] Create an async function `reload_target_page(page)` that calls `page.reload()`.
-    *   [ ] Add error handling (e.g., if the page was closed).
+6.  [X] **Implement CDP Connection:**
+    *   [X] Create an async function `connect_to_browser(cdp_url)` that uses `playwright.chromium.connect_over_cdp()`. (Implemented within `BrowserManager.connect`)
+    *   [X] Handle potential connection errors gracefully (e.g., `playwright._impl._api_types.Error`).
+7.  [X] **Implement Tab Listing:**
+    *   [X] Create an async function `get_available_pages(browser)` that retrieves all open pages/tabs (`browser.contexts()[0].pages`). (Implemented as `BrowserManager.list_pages`)
+    *   [X] Format the output nicely (e.g., index, title, URL). (Formatting will be done in REPL/UI layer)
+8.  [X] **Implement Target Page Selection:**
+    *   [X] Store the selected `Page` object. (Stored in `BrowserManager._target_page`)
+    *   [X] Create a function `set_target_page(page)`. (Implemented as `BrowserManager.set_target_page` and `set_target_page_by_index`)
+9.  [X] **Implement Page Reload:**
+    *   [X] Create an async function `reload_target_page(page)` that calls `page.reload()`. (Implemented as `BrowserManager.reload_target_page`)
+    *   [X] Add error handling (e.g., if the page was closed).
 
 **Phase 3: Command Line Interface & Entry Point (`cli.py`, `__main__.py`)**
 
-10. [ ] **Define CLI Arguments (`cli.py`):**
+10. [X] **Define CLI Arguments (`cli.py`):**
     *   [X] Use `typer` to create a main CLI function.
     *   [X] Add an argument for the `watch_path` (directory to monitor).
     *   [X] Add an optional argument for the `cdp_endpoint` (defaulting to `ws://127.0.0.1:9222`).
-11. [ ] **Basic Application Runner (`cli.py`):**
+11. [X] **Basic Application Runner (`cli.py`):**
     *   [X] In the main `typer` function, call the core application logic (which will eventually reside in `core.py`). For now, it can just print the arguments.
 12. [ ] **Create Module Entry Point (`__main__.py`):**
     *   [ ] Create `src/cdp_refresh/__main__.py`.
     *   [ ] Import and run the `typer` app from `cli.py`. This allows running via `python -m cdp_refresh`.
-13. [ ] **Configure `pyproject.toml` Entry Point:**
+13. [X] **Configure `pyproject.toml` Entry Point:**
     *   [X] Add `[project.scripts]` section in `pyproject.toml` to create a console script (e.g., `cdp-refresh = "cdp_refresh.cli:app"` if using Typer's default app name).
 
 **Phase 4: File Watching (`watcher.py`)**
@@ -110,3 +110,4 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
     *   [ ] Finalize installation and usage instructions (including `uv`).
     *   [ ] Add examples.
     *   [ ] Document REPL commands.
+

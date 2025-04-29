@@ -90,7 +90,7 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
         *   [X] Use `asyncio.gather` or similar to run tasks concurrently and wait for completion/cancellation. (Managed via `_shutdown_event.wait()` and `_tasks` set in `App.run`)
 21. [X] **Integrate with CLI (`cli.py`):**
     *   [X] Modify the `typer` function in `cli.py` to call `core.run_app` with the parsed arguments. Use `asyncio.run()`. (Implemented in `cli.py`)
-22. [ ] **Implement Graceful Shutdown:**
+22. [X] **Implement Graceful Shutdown:**
     *   [X] Handle `KeyboardInterrupt` and the `exit` command. (Handled via `shutdown_callback` in REPL, `_shutdown_event` in core, and `try/except` in `cli.py`)
     *   [X] Ensure `asyncio` tasks are cancelled. (Implemented in `App.shutdown` and `App._cleanup_tasks`)
     *   [X] Close the Playwright browser connection (`browser.close()`). (Implemented in `BrowserManager.disconnect`, called by `App.shutdown`)

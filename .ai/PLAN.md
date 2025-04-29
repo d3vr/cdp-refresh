@@ -71,10 +71,10 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
         *   [X] Prompt the user to select a tab by index.
         *   [X] Validate input.
         *   [X] Call the target page selection function from `browser.py` with the chosen page.
-17. [ ] **Implement `exit` Command:**
-    *   [ ] If input is `exit`, break the REPL loop or signal shutdown.
-18. [ ] **Handle Unknown Commands:**
-    *   [ ] Print an informative message for unrecognized input.
+17. [X] **Implement `exit` Command:**
+    *   [X] If input is `exit`, break the REPL loop or signal shutdown. (Already implemented in `run_repl`)
+18. [X] **Handle Unknown Commands:**
+    *   [X] Print an informative message for unrecognized input. (Already implemented in `run_repl`)
 
 **Phase 6: Orchestration & Integration (`core.py`)**
 

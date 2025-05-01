@@ -6,7 +6,7 @@
 import asyncio
 import sys
 from pathlib import Path
-from typing import Optional, Set
+from typing import Optional, Set, List # Added List
 
 import aiohttp # Added import
 # Use prompt_toolkit only for initial selection if needed, REPL handles its own

@@ -71,10 +71,14 @@ class REPL:
             client: CDP client
             watcher: File watcher
         """
+        # Import asyncio here to ensure it's available
+        import asyncio
+        
         self.client = client
         self.watcher = watcher
         self.running = False
         self.refresh_event = asyncio.Event()  # Event to signal file changes
+        
         self.commands: Dict[str, Dict] = {
             "help": {
                 "handler": self._cmd_help,
@@ -248,10 +252,9 @@ class REPL:
     
     async def _cmd_select_tab(self) -> None:
         """Select a different tab to refresh."""
-        import asyncio  # Import locally for each method that needs it
+        # Always import asyncio at the top of any async method for safety
+        import asyncio
         
-        # Import the select_tab function from cli module, handling circular imports
-        # by importing inside the function
         console.print("[bold cyan]Querying Chrome for available tabs...[/]")
         
         try:
@@ -310,12 +313,16 @@ class REPL:
             # Make sure we clean up properly even on error
             # Use a try/except block to avoid raising further exceptions
             try:
+                # Explicitly import asyncio here to ensure it's available
+                import asyncio
+                
                 if hasattr(self.client, 'current_tab') and self.client.current_tab:
                     previous_tab = self.client.current_tab
                     await self.client.connect(previous_tab.websocket_url, tab=previous_tab)
                     console.print(f"[yellow]Reconnected to previous tab.[/]")
-            except Exception:
-                pass
+            except Exception as reconnect_error:
+                if DEBUG_MODE:
+                    console.print(f"[red]Error reconnecting: {reconnect_error}[/]")
     
     async def _cmd_info(self) -> None:
         """Show current session info."""

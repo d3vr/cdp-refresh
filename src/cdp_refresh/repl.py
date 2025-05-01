@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import sys
+import traceback
 from typing import Dict, Callable, List, Optional
 
 from prompt_toolkit import PromptSession
@@ -16,6 +17,12 @@ from cdp_refresh.watcher import FileWatcher
 
 logger = logging.getLogger(__name__)
 console = Console()
+
+# Try to import DEBUG_MODE from cli module, default to False if not available
+try:
+    from cdp_refresh.cli import DEBUG_MODE
+except ImportError:
+    DEBUG_MODE = False
 
 
 class CommandCompleter(Completer):
@@ -241,8 +248,10 @@ class REPL:
     
     async def _cmd_select_tab(self) -> None:
         """Select a different tab to refresh."""
-        from cdp_refresh.cli import _select_tab
+        import asyncio  # Import locally for each method that needs it
         
+        # Import the select_tab function from cli module, handling circular imports
+        # by importing inside the function
         console.print("[bold cyan]Querying Chrome for available tabs...[/]")
         
         try:
@@ -250,8 +259,32 @@ class REPL:
             if hasattr(self.client, 'disconnect'):
                 await self.client.disconnect()
                 
-            # Use the select_tab function from cli.py
-            tab = await _select_tab(self.client)
+            # Query the available tabs
+            tabs = await self.client.get_tabs()
+            
+            if not tabs:
+                console.print("[yellow]No Chrome tabs available. Make sure Chrome is running with pages open.[/]")
+                return
+                
+            # Display available tabs
+            console.print(Panel("Available Chrome tabs:", style="bold green"))
+            for i, tab in enumerate(tabs):
+                title = tab.title[:50] + "..." if len(tab.title) > 50 else tab.title
+                console.print(f"[bold cyan]{i+1}.[/] {title}")
+                console.print(f"    [dim]{tab.url[:70]}[/]")
+            
+            # Get user selection with error handling
+            try:
+                from rich.prompt import Prompt
+                choice = Prompt.ask(
+                    "Select a tab to refresh",
+                    choices=[str(i+1) for i in range(len(tabs))],
+                    show_choices=False
+                )
+                tab = tabs[int(choice) - 1]
+            except (ValueError, IndexError, KeyboardInterrupt):
+                console.print("[yellow]Tab selection cancelled.[/]")
+                tab = None
             
             if tab:
                 # Connect to the new tab, passing the tab info
@@ -267,7 +300,22 @@ class REPL:
                     await self.client.connect(previous_tab.websocket_url, tab=previous_tab)
                     console.print(f"[yellow]Reconnected to previous tab:[/] [cyan]{previous_tab.title}[/]")
         except Exception as e:
-            console.print(f"[red]Error selecting tab: {e}[/]")
+            import traceback
+            if DEBUG_MODE:
+                console.print(f"[red]Error selecting tab: {e}[/]")
+                console.print(f"[red]Traceback: {traceback.format_exc()}[/]")
+            else:
+                console.print(f"[red]Error selecting tab: {e}[/]")
+            
+            # Make sure we clean up properly even on error
+            # Use a try/except block to avoid raising further exceptions
+            try:
+                if hasattr(self.client, 'current_tab') and self.client.current_tab:
+                    previous_tab = self.client.current_tab
+                    await self.client.connect(previous_tab.websocket_url, tab=previous_tab)
+                    console.print(f"[yellow]Reconnected to previous tab.[/]")
+            except Exception:
+                pass
     
     async def _cmd_info(self) -> None:
         """Show current session info."""

@@ -8,23 +8,23 @@ Useful for web development workflows where you want instant browser refresh upon
 
 1.  **Python:** Version 3.11 or higher.
 2.  **uv:** The `uv` package manager. Install from [Astral](https://github.com/astral-sh/uv).
-3.  **Running Chrome/Chromium with Remote Debugging:** You **must** launch your browser with the remote debugging port enabled *before* running this tool. The method varies by OS:
-    *   **Linux:**
-        ```bash
-        google-chrome --remote-debugging-port=9222
-        # or
-        chromium-browser --remote-debugging-port=9222
-        ```
-    *   **macOS:**
-        ```bash
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222
-        ```
-    *   **Windows:**
-        ```bash
-        "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
-        # Adjust the path if Chrome is installed elsewhere
-        ```
-    *   You can choose a different port, but you'll need to pass it to the tool using the `--cdp-endpoint` option (e.g., `ws://127.0.0.1:9333`). The default is `9222`.
+3.  **Running Chrome/Chromium with Remote Debugging:** You **must** launch your browser with the remote debugging port enabled _before_ running this tool. The method varies by OS:
+    - **Linux:**
+      ```bash
+      google-chrome --remote-debugging-port=9222
+      # or
+      chromium-browser --remote-debugging-port=9222
+      ```
+    - **macOS:**
+      ```bash
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222
+      ```
+    - **Windows:**
+      ```bash
+      "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
+      # Adjust the path if Chrome is installed elsewhere
+      ```
+    - You can choose a different port, but you'll need to pass it to the tool using the `--cdp-port` option. The default is `9222`.
 
 ## Installation
 
@@ -44,11 +44,5 @@ Useful for web development workflows where you want instant browser refresh upon
     ```bash
     uv pip install -e .
     ```
-4.  **Install Playwright browsers:** (Only needs to be done once)
-    ```bash
-    playwright install chromium
-    # Or install all supported browsers: playwright install
-    ```
 
 ## Usage (Planned)
-

@@ -1,5 +1,10 @@
+"""CDP Refresh - Entry point"""
+
+from cdp_refresh.cli import app
+
+
 def main():
-    print("Hello from cdp-refresh!")
+    app()
 
 
 if __name__ == "__main__":

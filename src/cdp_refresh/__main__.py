@@ -1,6 +1,6 @@
-"""Allows running the CLI via 'python -m cdp_refresh'."""
+"""Main entry point for CDP refresh."""
 
-from .cli import app
+from cdp_refresh.cli import app
 
 if __name__ == "__main__":
     app()

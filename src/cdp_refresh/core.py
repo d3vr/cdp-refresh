@@ -1,306 +1,162 @@
-# src/cdp_refresh/core.py
-"""Core application logic orchestrating browser, watcher, and REPL."""
+"""Core functionality for CDP Refresh."""
 
-import asyncio
-import sys
-from pathlib import Path
-from typing import List, Optional, Set  # Added List
+import json
+import logging
+from typing import Dict, List, Optional
+import httpx
+import websockets.client as websockets
+from pydantic import BaseModel
 
-import aiohttp  # Added import
-
-# Use prompt_toolkit only for initial selection if needed, REPL handles its own
-from prompt_toolkit import PromptSession
-from prompt_toolkit.history import InMemoryHistory
-
-from .browser import BrowserManager
-from .repl import run_repl
-from .watcher import watch_directory
+logger = logging.getLogger(__name__)
 
 
-class App:
-    """Orchestrates the CDP Refresh tool components."""
+class TabInfo(BaseModel):
+    """Information about a Chrome tab."""
+    
+    id: str
+    title: str
+    type: str
+    url: str
+    websocket_url: str
 
-    def __init__(self, watch_path: str, cdp_port: int):
-        """Initializes the App orchestrator."""
-        try:
-            # Resolve and validate watch path immediately
-            self.watch_path = Path(watch_path).resolve(strict=True)
-            if not self.watch_path.is_dir():
-                print(
-                    f"Error: Watch path '{watch_path}' is not a directory.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)  # Exit early if path is invalid
-        except FileNotFoundError:
-            print(f"Error: Watch path '{watch_path}' not found.", file=sys.stderr)
-            sys.exit(1)
-        except Exception as e:
-            print(f"Error resolving watch path '{watch_path}': {e}", file=sys.stderr)
-            sys.exit(1)
 
-        self.cdp_port = cdp_port
-        # BrowserManager will be initialized later in run() after fetching the target URL
-        self.browser_manager: Optional[BrowserManager] = None
-        self._shutdown_event = asyncio.Event()  # Used to signal shutdown across tasks
-        self._tasks: Set[asyncio.Task] = set()  # Keep track of running tasks
-
-    async def _get_page_targets(self) -> List[dict]:
-        """Fetches available page targets from the browser's JSON endpoint."""
-        json_url = (
-            f"http://127.0.0.1:{self.cdp_port}/json/list"  # Use /json/list explicitly
-        )
-        print(f"Fetching CDP page targets from: {json_url}")
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(json_url, timeout=10) as response:
-                    response.raise_for_status()  # Raise exception for bad status codes
-                    targets = await response.json()
-
-                    # Filter for page targets with necessary info
-                    page_targets = [
-                        t
-                        for t in targets
-                        if t.get("type") == "page"
-                        and "webSocketDebuggerUrl" in t
-                        and "title" in t
-                        and "url" in t
-                    ]
-
-                    if not page_targets:
-                        print("Error: No suitable page targets found.", file=sys.stderr)
-                        print(
-                            "Ensure the browser has open tabs and is accessible.",
-                            file=sys.stderr,
-                        )
-                        # print(f"Available targets: {targets}", file=sys.stderr) # For debugging
-                        return []
-
-                    print(f"Found {len(page_targets)} potential page targets.")
-                    return page_targets
-
-        except aiohttp.ClientConnectorError as e:
-            print(f"Error connecting to {json_url}: {e}", file=sys.stderr)
-            print(
-                "Is the browser running with the correct remote debugging port?",
-                file=sys.stderr,
-            )
-            return []
-        except aiohttp.ClientResponseError as e:
-            print(
-                f"Error fetching CDP targets from {json_url}: HTTP {e.status} {e.message}",
-                file=sys.stderr,
-            )
-            return []
-        except asyncio.TimeoutError:
-            print(f"Timeout connecting to {json_url}", file=sys.stderr)
-            return []
-        except Exception as e:
-            print(
-                f"An unexpected error occurred while fetching page targets: {e}",
-                file=sys.stderr,
-            )
-            return []
-
-    async def _initial_tab_selection(self, page_targets: List[dict]) -> Optional[str]:
-        """
-        Prompts the user to select a target page from the list fetched via HTTP.
-
+class CDPClient:
+    """Chrome DevTools Protocol client."""
+    
+    def __init__(self, host: str = "localhost", port: int = 9222):
+        """Initialize CDP client.
+        
         Args:
-            page_targets: A list of page target dictionaries from the /json/list endpoint.
-
-        Returns:
-            The webSocketDebuggerUrl of the selected page, or None if cancelled/error.
+            host: Chrome host
+            port: Chrome debugging port
         """
-        if not page_targets:
-            print("No open tabs found to select from.", file=sys.stderr)
-            return None
-
-        print("\nAvailable Tabs for Initial Selection:")
-        for i, target in enumerate(page_targets):
-            # Use information directly from the JSON target data
-            title = target.get("title", "N/A")
-            url = target.get("url", "N/A")
-            print(f"  [{i}] {title} ({url})")
-
-        session = PromptSession(history=InMemoryHistory())
-        while not self._shutdown_event.is_set():  # Allow shutdown during selection
-            try:
-                index_str = await session.prompt_async(
-                    "Enter index of tab to target (or Ctrl+C/D to exit): "
-                )
-                if not index_str.strip():
-                    continue
-                index = int(index_str)
-                if 0 <= index < len(page_targets):
-                    selected_target = page_targets[index]
-                    target_url = selected_target.get("webSocketDebuggerUrl")
-                    if target_url:
-                        print("-" * 20)  # Separator after selection
-                        print(f"Selected target: {selected_target.get('title', 'N/A')}")
-                        return target_url
-                    else:
-                        # Should not happen if filtering in _get_page_targets worked
-                        print(
-                            f"Error: Selected target at index {index} missing webSocketDebuggerUrl.",
-                            file=sys.stderr,
-                        )
-                        return None
-                else:
-                    print(
-                        f"Invalid index. Please enter a number between 0 and {len(page_targets) - 1}."
+        self.host = host
+        self.port = port
+        self.base_url = f"http://{host}:{port}"
+        self.ws_connection: Optional[websockets.WebSocketClientProtocol] = None
+        self.message_id = 0
+    
+    async def get_tabs(self) -> List[TabInfo]:
+        """Get list of available Chrome tabs.
+        
+        Returns:
+            List of tab information
+        
+        Raises:
+            Exception: If unable to connect to Chrome
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{self.base_url}/json/list")
+                response.raise_for_status()
+                
+                # Get raw text for debugging
+                raw_response = response.text
+                
+                # Try to check if DEBUG_MODE is defined in the cli module
+                debug_mode = False
+                try:
+                    from cdp_refresh.cli import DEBUG_MODE
+                    debug_mode = DEBUG_MODE
+                except (ImportError, AttributeError):
+                    pass
+                
+                # Print raw response in debug mode
+                if debug_mode:
+                    logger.info(f"Raw CDP response: {raw_response}")
+                
+                try:
+                    # Simple JSON parsing with no fancy fixes
+                    tabs_data = response.json()
+                    if debug_mode:
+                        logger.info("Successfully parsed JSON response")
+                except Exception as e:
+                    if debug_mode:
+                        logger.error(f"JSON parsing error: {e}")
+                        logger.error(f"Response content: {raw_response}")
+                    raise
+                
+                return [
+                    TabInfo(
+                        id=tab["id"],
+                        title=tab["title"],
+                        type=tab["type"],
+                        url=tab["url"],
+                        websocket_url=tab["webSocketDebuggerUrl"]
                     )
-            except ValueError:
-                print("Invalid input. Please enter a number.")
-            except (EOFError, KeyboardInterrupt):
-                print("\nInitial tab selection cancelled by user.")
-                return None  # User cancelled selection
-            except Exception as e:
-                print(f"\nAn error occurred during tab selection: {e}", file=sys.stderr)
-                await asyncio.sleep(0.1)  # Avoid tight loop on unexpected errors
-
-        return None  # Shutdown was triggered during selection
-
-    async def _reload_callback(self):
-        """Callback passed to the watcher to trigger page reload."""
-        # Now BrowserManager handles the single connected page directly
-        if self.browser_manager and self.browser_manager.is_connected:
-            await self.browser_manager.reload_target_page()
-        elif self.browser_manager:  # Check if it exists but is not connected
-            print(
-                "Watcher Callback: Browser disconnected, cannot reload.",
-                file=sys.stderr,
-            )
-        # else: browser_manager is None (shouldn't happen if run() completed successfully)
-
-    async def run(self):
-        """Runs the main application logic: connect, select tab, start tasks."""
-        print("Starting CDP Refresh:")
-        print(f"  Watching: '{self.watch_path}'")
-        print(f"  Using CDP port: {self.cdp_port}")
-        print("-" * 20)
-
-        # 1. Get available page targets via HTTP
-        page_targets = await self._get_page_targets()
-        if not page_targets:
-            print("Could not find any suitable page targets. Exiting.", file=sys.stderr)
-            return  # Exit if no targets found
-
-        # 2. Prompt user to select a target page
-        selected_target_url = await self._initial_tab_selection(page_targets)
-        if not selected_target_url:
-            print("No target tab selected. Exiting.")
-            # No need to call shutdown() here as nothing is connected yet
-            return  # Exit if no selection made
-
-        # 3. Initialize and Connect BrowserManager to the selected page URL
-        self.browser_manager = BrowserManager(
-            selected_target_url, shutdown_callback=self.shutdown
-        )
-        if not await self.browser_manager.connect():
-            # Error message printed by connect()
-            return  # Exit if connection fails
-
-        # If we reach here, connection to the specific page is successful.
-        # We might not have the title readily available here anymore without extra calls.
-        print("\nSuccessfully connected to target page.")
-        print(f"Watching directory '{self.watch_path}' for changes...")
-        print("Starting REPL. Type 'exit' to quit.")  # Removed 'choose-tab'
-        print("-" * 20)
-
-        # 4. Define and Start Background Tasks
+                    for tab in tabs_data
+                    if tab.get("type") == "page" and "webSocketDebuggerUrl" in tab
+                ]
+        except (httpx.RequestError, KeyError) as e:
+            logger.error(f"Error getting Chrome tabs: {e}")
+            raise Exception(f"Unable to connect to Chrome at {self.base_url}. "
+                           f"Make sure Chrome is running with remote debugging enabled.") from e
+    
+    async def connect(self, websocket_url: str) -> None:
+        """Connect to a Chrome tab via WebSocket.
+        
+        Args:
+            websocket_url: WebSocket URL for the tab
+            
+        Raises:
+            Exception: If connection fails
+        """
         try:
-            watcher_task = asyncio.create_task(
-                watch_directory(
-                    self.watch_path, self._reload_callback, self._shutdown_event
-                )
-            )
-            self._tasks.add(watcher_task)
-            watcher_task.add_done_callback(self._tasks.discard)  # Auto-remove when done
-
-            repl_task = asyncio.create_task(
-                run_repl(self.browser_manager, shutdown_callback=self.shutdown)
-            )
-            self._tasks.add(repl_task)
-            repl_task.add_done_callback(self._tasks.discard)  # Auto-remove when done
-
-            # 4. Wait for shutdown signal
-            # This will block until shutdown() is called (by REPL, disconnect, signal)
-            await self._shutdown_event.wait()
-
+            self.ws_connection = await websockets.connect(websocket_url)
+            logger.info(f"Connected to Chrome tab via WebSocket: {websocket_url}")
         except Exception as e:
-            print(f"\nError during task setup or main wait loop: {e}", file=sys.stderr)
-            await self.shutdown()  # Trigger shutdown on unexpected error
-        finally:
-            # This block ensures cleanup happens even if _shutdown_event.wait()
-            # is interrupted unexpectedly (though shutdown() should handle it).
-            print("Main loop finished or interrupted. Ensuring cleanup...")
-            if not self._shutdown_event.is_set():
-                # If shutdown wasn't triggered normally, trigger it now.
-                await self.shutdown()
-            # Wait briefly for tasks to finish cancelling if shutdown was just called
-            await asyncio.sleep(0.1)
-
-        print("CDP Refresh finished.")
-
-    async def shutdown(self):
-        """Initiates graceful shutdown by setting the event and cleaning up tasks."""
-        if self._shutdown_event.is_set():
-            return  # Shutdown already in progress
-
-        print("\nInitiating shutdown...")
-        self._shutdown_event.set()  # Signal all waiting components (watcher, main loop)
-
-        await self._cleanup_tasks()
-
-        # Disconnect browser (might already be disconnected if that triggered shutdown)
-        if self.browser_manager:
-            await self.browser_manager.disconnect()
-
-    async def _cleanup_tasks(self):
-        """Cancel all tracked asyncio tasks."""
-        if not self._tasks:
-            return
-
-        print("Cancelling background tasks...")
-        # Create a copy as tasks remove themselves from the set on completion/cancellation
-        tasks_to_cancel = list(self._tasks)
-        for task in tasks_to_cancel:
-            if not task.done():
-                task.cancel()
-
-        # Wait for tasks to finish cancellation
-        # Use a timeout to prevent hanging indefinitely if a task ignores cancellation
+            logger.error(f"Failed to connect to Chrome tab: {e}")
+            raise Exception(f"Unable to connect to Chrome tab via WebSocket: {e}") from e
+    
+    async def disconnect(self) -> None:
+        """Disconnect from the Chrome tab with timeout to prevent hanging."""
+        if self.ws_connection and not self.ws_connection.closed:
+            try:
+                # Use a timeout to prevent hanging on disconnect
+                close_task = self.ws_connection.close()
+                await asyncio.wait_for(close_task, timeout=0.5)
+                logger.info("Disconnected from Chrome tab")
+            except asyncio.TimeoutError:
+                logger.warning("Timed out while closing WebSocket connection")
+            except Exception as e:
+                logger.error(f"Error closing WebSocket connection: {e}")
+            finally:
+                # Ensure the connection is marked as closed
+                self.ws_connection = None
+    
+    async def reload_page(self) -> None:
+        """Reload the current page."""
+        await self._send_command("Page.reload", {"ignoreCache": True})
+    
+    async def _send_command(self, method: str, params: Dict = None) -> Dict:
+        """Send a command to Chrome via CDP.
+        
+        Args:
+            method: CDP method name
+            params: Command parameters
+            
+        Returns:
+            Command result
+            
+        Raises:
+            Exception: If not connected or command fails
+        """
+        if not self.ws_connection or self.ws_connection.closed:
+            raise Exception("Not connected to Chrome")
+        
+        self.message_id += 1
+        message = {
+            "id": self.message_id,
+            "method": method,
+        }
+        
+        if params:
+            message["params"] = params
+        
         try:
-            await asyncio.wait(tasks_to_cancel, timeout=5.0)
-        except asyncio.TimeoutError:
-            print("Warning: Timeout waiting for tasks to cancel.", file=sys.stderr)
-
-        # Explicitly gather results to potentially see cancellation errors (optional)
-        # await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
-
-        self._tasks.clear()
-        print("Background tasks cancelled.")
-
-
-async def run_app(watch_path: str, cdp_port: int):  # Changed cdp_endpoint to cdp_port
-    """Sets up and runs the application, handling top-level exceptions."""
-    app = None  # Ensure app is defined for finally block
-    try:
-        app = App(watch_path, cdp_port)  # Changed cdp_endpoint to cdp_port
-        await app.run()
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        print("\nApplication interrupted.")
-        # Shutdown should be triggered internally by signal handlers or task cancellation
-    except SystemExit:
-        # Raised by sys.exit(1) in __init__ on path validation failure.
-        # No further action needed here, error message already printed.
-        pass
-    except Exception as e:
-        print(f"\nAn unexpected critical error occurred: {e}", file=sys.stderr)
-        # Optionally add more detailed logging here, e.g., traceback
-        # import traceback
-        # traceback.print_exc()
-    finally:
-        if app and not app._shutdown_event.is_set():
-            print("Ensuring final shutdown...")
-            await app.shutdown()
+            await self.ws_connection.send(json.dumps(message))
+            response = await self.ws_connection.recv()
+            return json.loads(response)
+        except Exception as e:
+            logger.error(f"Error sending command to Chrome: {e}")
+            raise Exception(f"Failed to send command to Chrome: {e}") from e

@@ -5,11 +5,13 @@ description = "A tool to watch local file changes and refresh a specific Chrome 
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "playwright>=1.40", # Using a recent version
-    "watchfiles>=0.20", # Using a recent version
-    "prompt-toolkit>=3.0",
-    "typer[all]>=0.9", # Using typer with rich support
-    "aiohttp>=3.9", # For fetching CDP target URL
+    "watchfiles>=0.20.0",
+    "websockets>=11.0.3",
+    "httpx>=0.24.1",
+    "typer>=0.9.0",
+    "rich>=13.5.2",
+    "pydantic>=2.4.0",
+    "prompt_toolkit>=3.0.38",
 ]
 
 [project.scripts]
@@ -18,13 +20,3 @@ cdp-refresh = "cdp_refresh.cli:app"
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
-
-# Optional: Tool-specific configurations if needed later
-# [tool.pytest.ini_options]
-# pythonpath = ["src"]
-# testpaths = ["tests"]
-
-# [tool.ruff]
-# line-length = 88
-# select = ["E", "F", "W", "I", "UP", "PL", "T20"] # Example linter rules
-

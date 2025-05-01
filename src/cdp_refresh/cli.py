@@ -29,8 +29,42 @@ logging.basicConfig(
 logger = logging.getLogger("cdp_refresh")
 console = Console()
 
-# Global debug flag
+# Global debug flag and debugging functions
 DEBUG_MODE = False
+
+def debug_html_string(html_string):
+    """Debug an HTML string to identify XML parsing issues.
+    
+    Args:
+        html_string: HTML string to debug
+    """
+    if not DEBUG_MODE:
+        return
+        
+    print("\n--- HTML DEBUG ---")
+    
+    # Print with line numbers and character positions
+    lines = html_string.split('\n')
+    for i, line in enumerate(lines):
+        print(f"Line {i+1}:")
+        print(line)
+        # Print character position markers every 10 chars
+        ruler = ' '.join([f"{j:1d}" for j in range(1, 10)]) + ' '
+        ruler = ruler * (len(line) // 10 + 1)
+        print(ruler[:len(line)])
+        print("-" * len(line))
+    
+    # Also print a character-by-character view with character codes
+    print("\nCharacter codes:")
+    for i, line in enumerate(lines):
+        if i == 5:  # Line 6 (0-indexed) where error reportedly is
+            print(f"Line {i+1} (reported error location):")
+            for j, char in enumerate(line):
+                # Extra detail around the error position
+                if j >= 55 and j <= 65:  # Focus on columns 55-65
+                    print(f"Col {j+1}: '{char}' (ord={ord(char)}, hex={hex(ord(char))})")
+    
+    print("--- END DEBUG ---\n")
 
 app = typer.Typer(
     help="CDP Refresh - Watch local files and refresh Chrome tabs",
@@ -99,116 +133,178 @@ async def _select_tab(client: CDPClient) -> Optional[TabInfo]:
         if not tabs:
             logger.error("No Chrome tabs available. Make sure Chrome is running with pages open.")
             return None
+            
+        # Debug tab titles
+        if DEBUG_MODE:
+            logger.info(f"Found {len(tabs)} tabs:")
+            for i, tab in enumerate(tabs):
+                logger.info(f"Tab {i+1}: title={repr(tab.title)}, url={repr(tab.url)[:50]}...")
         
-        # Use a simpler approach instead of HTML-based prompt_toolkit
-        # Import Python standard curses library for terminal UI
+        # Import prompt_toolkit components for tab selection UI
         try:
-            import curses
-            import curses.ascii
-        except ImportError:
-            logger.error("Failed to import curses for interactive selection")
-            return await _select_tab_fallback(client)
-
-        # Prepare tab display data
-        tab_titles = []
-        for tab in tabs:
-            # Clean title for display
-            title = str(tab.title) if tab.title else "Untitled"
-            title = title[:60] + "..." if len(title) > 60 else title
-            tab_titles.append(title)
-            
-        # Define the curses UI wrapper function
-        async def _curses_ui():
-            selected_idx = 0
-            result = None
-            
-            def _draw_menu(stdscr, selected_idx):
-                stdscr.clear()
-                h, w = stdscr.getmaxyx()
-                
-                # Print header
-                header = "Available Chrome tabs (use arrow keys to navigate, Enter to select)"
-                stdscr.addstr(0, 0, header[:w-1], curses.A_BOLD)
-                stdscr.addstr(1, 0, "-" * min(len(header), w-1))
-                
-                # Calculate visible range for scrolling if needed
-                visible_count = h - 4  # Header + separator + instruction
-                start_idx = max(0, selected_idx - (visible_count // 2))
-                end_idx = min(len(tab_titles), start_idx + visible_count)
-                
-                # Print tab list
-                for i in range(start_idx, end_idx):
-                    y = i - start_idx + 2
-                    prefix = f"{i+1}. "
-                    
-                    # Set highlight for selected item
-                    if i == selected_idx:
-                        attr = curses.A_REVERSE
-                        prefix = "→ " + prefix
-                    else:
-                        attr = curses.A_NORMAL
-                        prefix = "  " + prefix
-                    
-                    # Make sure text fits in the window
-                    display_width = w - len(prefix) - 1
-                    title_display = tab_titles[i][:display_width]
-                    
-                    stdscr.addstr(y, 0, prefix + title_display, attr)
-                
-                # Print footer
-                footer = "Press Enter to select, Esc to cancel"
-                if h > end_idx - start_idx + 4:
-                    stdscr.addstr(h-1, 0, footer[:w-1])
-                
-                stdscr.refresh()
-            
-            def _curses_main(stdscr):
-                nonlocal selected_idx, result
-                
-                # Setup terminal
-                curses.curs_set(0)  # Hide cursor
-                stdscr.timeout(100)  # Non-blocking input with timeout
-                
-                # Initial display
-                _draw_menu(stdscr, selected_idx)
-                
-                # Main loop
-                while True:
-                    try:
-                        c = stdscr.getch()
-                        
-                        if c == curses.KEY_UP:
-                            selected_idx = max(0, selected_idx - 1)
-                        elif c == curses.KEY_DOWN:
-                            selected_idx = min(len(tab_titles) - 1, selected_idx + 1)
-                        elif c == curses.KEY_ENTER or c == 10 or c == 13:  # Enter key
-                            result = selected_idx
-                            break
-                        elif c == 27:  # Escape key
-                            result = None
-                            break
-                        
-                        _draw_menu(stdscr, selected_idx)
-                    except Exception as e:
-                        # Just in case of terminal errors
-                        break
-            
-            # Run curses in a separate thread to not block the event loop
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, lambda: curses.wrapper(_curses_main))
-            
-            return result
-        
-        # Show initial message
-        console.print(Panel("Loading tab selector...", style="bold green"))
-        
-        # Run the UI and get the selected index
-        selected_index = await _curses_ui()
-        
-        # Check if selection was cancelled
-        if selected_index is None or selected_index >= len(tabs):
-            logger.info("Tab selection cancelled")
+            from prompt_toolkit import Application
+            from prompt_toolkit.formatted_text import HTML
+            from prompt_toolkit.key_binding import KeyBindings
+            from prompt_toolkit.layout.containers import Window
+            from prompt_toolkit.layout.controls import FormattedTextControl
+            from prompt_toolkit.layout import Layout
+            from prompt_toolkit.styles import Style
+        except ImportError as e:
+            logger.error(f"Error importing prompt_toolkit: {e}")
+            logger.error("Make sure prompt_toolkit is installed correctly")
+            logger.error("Try: pip install prompt_toolkit>=3.0.38")
             return None
+        
+        # Setup for arrow key selection
+        selected_index = 0
+        kb = KeyBindings()
+        
+        @kb.add('up')
+        def _(event):
+            nonlocal selected_index
+            if selected_index > 0:
+                selected_index -= 1
+            _update_display()
+        
+        @kb.add('down')
+        def _(event):
+            nonlocal selected_index
+            if selected_index < len(tabs) - 1:
+                selected_index += 1
+            _update_display()
+        
+        @kb.add('enter')
+        def _(event):
+            event.app.exit()
+        
+        @kb.add('c-c')
+        @kb.add('escape')
+        def _(event):
+            nonlocal selected_index
+            selected_index = -1  # Signal cancellation
+            event.app.exit()
+        
+        def _get_tab_display() -> str:
+            """Generate HTML for tab display with selection highlight."""
+            lines = ["<b>Available Chrome tabs (use arrow keys to navigate):</b>\n"]
+            
+            for i, tab in enumerate(tabs):
+                try:
+                    # Ensure we're working with strings and handle potential None values
+                    tab_title = str(tab.title) if tab.title else "Untitled"
+                    tab_url = str(tab.url) if tab.url else ""
+                    
+                    # Sanitize and simplify titles to avoid HTML/XML parsing issues
+                    # Only keep alphanumeric characters, spaces, and basic punctuation
+                    import re
+                    
+                    # More aggressive sanitization for HTML/XML parsing
+                    # First remove all non-printable characters
+                    title = ''.join(c for c in tab_title if c.isprintable())
+                    
+                    # Then remove any HTML special chars
+                    title = re.sub(r'[<>&]', '', title)  
+                    
+                    # Finally limit to a very safe subset of characters
+                    title = re.sub(r'[^\w\s.,;:!?()\[\]-]', '', title)  
+                    
+                    # Truncate long titles
+                    title = title[:50] + "..." if len(title) > 50 else title
+                    
+                    # Additional debugging for each title
+                    if DEBUG_MODE:
+                        for i, c in enumerate(title):
+                            if ord(c) > 127:  # Non-ASCII char
+                                logger.debug(f"Non-ASCII char in title: pos={i} char='{c}' ord={ord(c)} hex={hex(ord(c))}")
+                    
+                    # Similar aggressive sanitization for URLs
+                    # First remove all non-printable characters
+                    url_clean = ''.join(c for c in tab_url if c.isprintable())
+                    
+                    # Then remove any HTML special chars
+                    url_clean = re.sub(r'[<>&]', '', url_clean)
+                    
+                    # Keep only URL-safe characters
+                    url_simple = re.sub(r'[^\w\s./:?&=\-_~%+]', '', url_clean)
+                    
+                    # Truncate long URLs
+                    url_display = url_simple[:70] + "..." if len(url_simple) > 70 else url_simple
+                    
+                    if i == selected_index:
+                        # Highlight selected tab
+                        selected_line = f"<b>[→] <ansiblue>{i+1}.</ansiblue> <ansiyellow>{title}</ansiyellow></b>"
+                        url_line = f"    <ansibrightblack>{url_display}</ansibrightblack>"
+                        
+                        if DEBUG_MODE:
+                            # Debug specific lines that might cause issues
+                            logger.debug(f"Selected tab {i+1} - title line: {repr(selected_line)}")
+                            logger.debug(f"Selected tab {i+1} - url line: {repr(url_line)}")
+                            
+                        lines.append(selected_line)
+                        lines.append(url_line)
+                    else:
+                        normal_line = f"    <ansiblue>{i+1}.</ansiblue> {title}"
+                        url_line = f"    <ansibrightblack>{url_display}</ansibrightblack>"
+                        lines.append(normal_line)
+                        lines.append(url_line)
+                except Exception as tab_error:
+                    # Handle any errors with a single tab
+                    if DEBUG_MODE:
+                        logger.warning(f"Error formatting tab {i}: {tab_error}")
+                    # Add safe fallback display
+                    if i == selected_index:
+                        lines.append(f"<b>[→] <ansiblue>{i+1}.</ansiblue> <ansiyellow>Tab {i+1}</ansiyellow></b>")
+                    else:
+                        lines.append(f"    <ansiblue>{i+1}.</ansiblue> Tab {i+1}")
+            
+            return "\n".join(lines)
+        
+        # Get the HTML string and debug it
+        html_string = _get_tab_display()
+        if DEBUG_MODE:
+            debug_html_string(html_string)
+            
+        # Create the control with initial display
+        control = FormattedTextControl(HTML(html_string))
+        
+        # Function to update display when selection changes
+        def _update_display():
+            new_html = _get_tab_display()
+            if DEBUG_MODE:
+                debug_html_string(new_html)
+                
+            try:
+                control.text = HTML(new_html)
+            except Exception as e:
+                if DEBUG_MODE:
+                    logger.error(f"Error updating display: {e}")
+                    logger.error(f"HTML string causing error: {repr(new_html)}")
+        
+        # Create app layout
+        layout = Layout(Window(content=control))
+        
+        # Define styles
+        style = Style.from_dict({
+            "": "bg:#202020 #ffffff",
+        })
+        
+        # Create and run application
+        app = Application(
+            layout=layout,
+            key_bindings=kb,
+            style=style,
+            full_screen=False,
+            mouse_support=True,
+        )
+        
+        # Display initial tabs
+        console.print(Panel("Loading Chrome tabs...", style="bold green"))
+        
+        # Small delay to ensure everything is initialized properly
+        await asyncio.sleep(0.2)
+        
+        # Run app
+        await asyncio.create_task(app.run_async())
         
         # Handle selection
         if selected_index == -1 or selected_index >= len(tabs):

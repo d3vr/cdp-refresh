@@ -31,8 +31,7 @@ class BrowserManager:
         self._shutdown_callback = shutdown_callback # Added
         self._playwright: Optional[Playwright] = None
         self._browser: Optional[Browser] = None
-        self._target_page: Optional[Page] = None
-        self._available_pages: List[Page] = []
+        # Removed _target_page and _available_pages as we connect to one page directly
 
     async def connect(self) -> bool:
         """
@@ -86,19 +85,18 @@ class BrowserManager:
             print("Playwright stopped.")
         self._browser = None
         self._playwright = None
-        self._target_page = None
-        self._available_pages = []
+        # No _target_page or _available_pages to clear
 
     def _handle_disconnect(self):
         """Callback function for when the browser disconnects unexpectedly."""
-        print("\nBrowser disconnected unexpectedly.", file=sys.stderr)
+        # This might represent the specific page closing, or the whole browser.
+        print("\nConnection to target page lost (page closed or browser disconnected).", file=sys.stderr)
         # We can't use async methods directly in the sync handler from playwright's event
         # Signal the main application loop or user about the disconnection if needed.
         # For now, just print. The next reload attempt will likely fail.
         self._browser = None
         self._playwright = None # Assume playwright instance is no longer valid
-        self._target_page = None
-        self._available_pages = []
+        # No _target_page or _available_pages to clear
         # Trigger application shutdown if a callback is provided
         # Schedule the callback to run in the event loop
         if self._shutdown_callback:
@@ -110,78 +108,61 @@ class BrowserManager:
         Retrieves a list of currently open pages (tabs) in the first browser context.
 
         Returns:
-            List[Page]: A list of Playwright Page objects. Returns empty list on error.
+            List[Page]: A list containing the single connected Page object, or empty list on error.
         """
-        if not self._browser or not self._browser.is_connected():
-            print("Error: Not connected to the browser.", file=sys.stderr)
+        # When connected directly to a page, we can only see that page.
+        if not self.is_connected:
+            print("Error: Not connected.", file=sys.stderr)
             return []
         try:
-            # Assuming we only care about the first context (usually the default one)
-            # If multiple browser windows/profiles are open via CDP, this might need adjustment
+            # The connected page should be the only one in the first context.
             if not self._browser.contexts:
                  print("Error: No browser contexts available.", file=sys.stderr)
                  return []
             context = self._browser.contexts[0]
-            self._available_pages = context.pages
-            return self._available_pages
+            # Return the list (should contain 0 or 1 page)
+            return context.pages
         except Error as e:
-            print(f"Error retrieving pages: {e}", file=sys.stderr)
+            print(f"Error retrieving connected page: {e}", file=sys.stderr)
             return []
 
-    def set_target_page(self, page: Page):
-        """Sets the target page for reloading."""
-        if page in self._available_pages:
-            self._target_page = page
-            print(f"Target tab set to: '{page.title()}' ({page.url})")
-        else:
-            print("Error: Selected page is not valid or available.", file=sys.stderr)
-
-    def set_target_page_by_index(self, index: int) -> bool:
-        """Sets the target page by its index in the last fetched list."""
-        if 0 <= index < len(self._available_pages):
-            self.set_target_page(self._available_pages[index])
-            return True
-        else:
-            print(f"Error: Invalid index {index}.", file=sys.stderr)
-            return False
+    # Removed set_target_page and set_target_page_by_index as they are no longer applicable
 
     async def reload_target_page(self):
-        """Reloads the currently selected target page."""
-        if not self._target_page:
-            print("Warning: No target tab selected for reload.", file=sys.stderr)
-            return
-
-        if not self._browser or not self._browser.is_connected():
-             print("Error: Cannot reload, browser is disconnected.", file=sys.stderr)
-             # Attempt to clear the target page if it's no longer valid
-             if self._target_page.is_closed():
-                 self._target_page = None
+        """Reloads the connected page."""
+        if not self.is_connected:
+             print("Error: Cannot reload, not connected.", file=sys.stderr)
              return
 
-        if self._target_page.is_closed():
+        connected_pages = await self.list_pages()
+        if not connected_pages:
+             print("Error: Cannot find the connected page to reload.", file=sys.stderr)
+             return
+
+        target_page = connected_pages[0] # Get the single connected page
+
+        if target_page.is_closed():
             print(
-                f"Error: Target tab '{self._target_page.url}' is closed. Please choose a new tab.",
+                f"Error: Connected page '{target_page.url}' is closed.",
                 file=sys.stderr,
             )
-            self._target_page = None # Clear the closed target page
-            # TODO: Signal REPL or core to re-prompt for tab selection?
+            # Disconnect might be triggered by the disconnect handler anyway
             return
 
         try:
-            print(f"Reloading target tab: '{await self._target_page.title()}'...")
-            await self._target_page.reload(wait_until="domcontentloaded")
+            page_title = await target_page.title() # Get title before reload potentially changes it
+            print(f"Reloading connected page: '{page_title}'...")
+            # Use a reasonable timeout for reload
+            await target_page.reload(wait_until="domcontentloaded", timeout=30000)
             print("Reload complete.")
         except Error as e:
             print(f"Error reloading page: {e}", file=sys.stderr)
-            # Check if the page closed during the reload attempt
-            if self._target_page.is_closed():
-                 print("Target tab closed during reload.", file=sys.stderr)
-                 self._target_page = None
+            # The disconnect handler should manage cleanup if the page/browser closed
+        except asyncio.TimeoutError:
+             print(f"Timeout reloading page: '{await target_page.title()}'.", file=sys.stderr)
 
-    @property
-    def target_page(self) -> Optional[Page]:
-        """Returns the currently selected target page."""
-        return self._target_page
+
+    # Removed target_page property
 
     @property
     def is_connected(self) -> bool:

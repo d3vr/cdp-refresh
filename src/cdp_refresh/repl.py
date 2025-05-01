@@ -26,7 +26,7 @@ async def run_repl(browser_manager: "BrowserManager", shutdown_callback: Optiona
     history = InMemoryHistory()
     session = PromptSession(history=history)
     print("\n--- CDP Refresh REPL ---")
-    print("Type 'choose-tab' to select a browser tab.")
+    # print("Type 'choose-tab' to select a browser tab.") # Removed choose-tab
     print("Type 'exit' to quit.")
     print("------------------------")
 
@@ -45,41 +45,10 @@ async def run_repl(browser_manager: "BrowserManager", shutdown_callback: Optiona
                 if shutdown_callback:
                     await shutdown_callback() # Signal shutdown
                 break # Exit the loop regardless
-            elif command == "choose-tab":
-                if not browser_manager.is_connected:
-                    print("Browser is not connected. Cannot list tabs.", file=sys.stderr)
-                    continue
-                pages = await browser_manager.list_pages()
-                if not pages:
-                    print("No open tabs found in the browser.")
-                    continue
-
-                print("\nAvailable Tabs:")
-                for i, page in enumerate(pages):
-                    title = await page.title()
-                    print(f"  [{i}] {title} ({page.url})")
-
-                while True:
-                    try:
-                        index_str = await session.prompt_async("Enter tab index to target: ")
-                        if not index_str.strip(): # Allow empty input to cancel
-                            print("Tab selection cancelled.")
-                            break
-                        index = int(index_str)
-                        if browser_manager.set_target_page_by_index(index):
-                            break # Successfully set
-                        else:
-                            # Error message printed by set_target_page_by_index
-                            print(f"Please enter a number between 0 and {len(pages) - 1}.")
-                    except ValueError:
-                        print("Invalid input. Please enter a number.")
-                    except (EOFError, KeyboardInterrupt):
-                        print("\nTab selection cancelled.")
-                        break
-            # TODO: Implement other commands (Step 17: exit is done, Step 18: unknown is done)
+            # Removed 'choose-tab' command block
             else:
-                print(f"Unknown command: {command}")
-                print("Available commands: choose-tab, exit")
+                print(f"Unknown command: '{command}'")
+                print("Available commands: exit")
 
         except (EOFError, KeyboardInterrupt):
             print("\nExiting REPL (Ctrl+D / Ctrl+C)...")

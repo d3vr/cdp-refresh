@@ -42,69 +42,66 @@ class App:
         self._shutdown_event = asyncio.Event() # Used to signal shutdown across tasks
         self._tasks: Set[asyncio.Task] = set() # Keep track of running tasks
 
-    async def _get_cdp_target_url(self) -> Optional[str]:
-        """Fetches the CDP target URL from the browser's JSON endpoint."""
-        json_url = f"http://127.0.0.1:{self.cdp_port}/json"
-        print(f"Fetching CDP targets from: {json_url}")
+    async def _get_page_targets(self) -> List[dict]:
+        """Fetches available page targets from the browser's JSON endpoint."""
+        json_url = f"http://127.0.0.1:{self.cdp_port}/json/list" # Use /json/list explicitly
+        print(f"Fetching CDP page targets from: {json_url}")
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(json_url, timeout=10) as response:
                     response.raise_for_status() # Raise exception for bad status codes
                     targets = await response.json()
 
-                    # Find the target of type 'browser'
-                    browser_target = None
-                    for target in targets:
-                        if target.get("type") == "browser" and "webSocketDebuggerUrl" in target:
-                            browser_target = target
-                            break # Found the main browser target
+                    # Filter for page targets with necessary info
+                    page_targets = [
+                        t for t in targets
+                        if t.get("type") == "page" and "webSocketDebuggerUrl" in t and "title" in t and "url" in t
+                    ]
 
-                    if browser_target:
-                        target_url = browser_target["webSocketDebuggerUrl"]
-                        print(f"Found browser CDP target URL: {target_url}")
-                        return target_url
-                    else:
-                        print("Error: No suitable CDP target with type 'browser' found.", file=sys.stderr)
-                        print("Ensure Chrome was launched with --remote-debugging-port and is accessible.", file=sys.stderr)
-                        # Optionally print available targets for debugging
-                        # print(f"Available targets: {targets}", file=sys.stderr)
-                        return None
+                    if not page_targets:
+                        print("Error: No suitable page targets found.", file=sys.stderr)
+                        print("Ensure the browser has open tabs and is accessible.", file=sys.stderr)
+                        # print(f"Available targets: {targets}", file=sys.stderr) # For debugging
+                        return []
+
+                    print(f"Found {len(page_targets)} potential page targets.")
+                    return page_targets
 
         except aiohttp.ClientConnectorError as e:
             print(f"Error connecting to {json_url}: {e}", file=sys.stderr)
             print("Is the browser running with the correct remote debugging port?", file=sys.stderr)
-            return None
+            return []
         except aiohttp.ClientResponseError as e:
              print(f"Error fetching CDP targets from {json_url}: HTTP {e.status} {e.message}", file=sys.stderr)
-             return None
+             return []
         except asyncio.TimeoutError:
              print(f"Timeout connecting to {json_url}", file=sys.stderr)
-             return None
+             return []
         except Exception as e:
-            print(f"An unexpected error occurred while fetching CDP target URL: {e}", file=sys.stderr)
+            print(f"An unexpected error occurred while fetching page targets: {e}", file=sys.stderr)
+            return []
+
+    async def _initial_tab_selection(self, page_targets: List[dict]) -> Optional[str]:
+        """
+        Prompts the user to select a target page from the list fetched via HTTP.
+
+        Args:
+            page_targets: A list of page target dictionaries from the /json/list endpoint.
+
+        Returns:
+            The webSocketDebuggerUrl of the selected page, or None if cancelled/error.
+        """
+        if not page_targets:
+            print("No open tabs found to select from.", file=sys.stderr)
             return None
 
-    async def _initial_tab_selection(self) -> bool:
-        """Guides the user through selecting the initial target tab."""
-        if not self.browser_manager: # Should not happen if init is correct
-            return False
-
-        pages = await self.browser_manager.list_pages()
-        if not pages:
-            print("No open tabs found in the browser.", file=sys.stderr)
-            print("Please open a tab in the target browser instance and restart.", file=sys.stderr)
-            return False # Cannot proceed without tabs
-
         print("\nAvailable Tabs for Initial Selection:")
-        for i, page in enumerate(pages):
-            try:
-                # Fetch title within try-except as page might close
-                title = await page.title()
-                print(f"  [{i}] {title} ({page.url})")
-            except Exception as e:
-                 print(f"  [{i}] Error retrieving title ({page.url}): {e}")
+        for i, target in enumerate(page_targets):
+            # Use information directly from the JSON target data
+            title = target.get('title', 'N/A')
+            url = target.get('url', 'N/A')
+            print(f"  [{i}] {title} ({url})")
 
-        # Use prompt_toolkit for robust input handling during selection
         session = PromptSession(history=InMemoryHistory())
         while not self._shutdown_event.is_set(): # Allow shutdown during selection
             try:
@@ -112,28 +109,36 @@ class App:
                 if not index_str.strip():
                     continue
                 index = int(index_str)
-                if self.browser_manager.set_target_page_by_index(index):
-                    print("-" * 20) # Separator after selection
-                    return True # Successfully selected
+                if 0 <= index < len(page_targets):
+                    selected_target = page_targets[index]
+                    target_url = selected_target.get("webSocketDebuggerUrl")
+                    if target_url:
+                        print("-" * 20) # Separator after selection
+                        print(f"Selected target: {selected_target.get('title', 'N/A')}")
+                        return target_url
+                    else:
+                        # Should not happen if filtering in _get_page_targets worked
+                        print(f"Error: Selected target at index {index} missing webSocketDebuggerUrl.", file=sys.stderr)
+                        return None
                 else:
-                    # Error message printed by set_target_page_by_index
-                    print(f"Please enter a number between 0 and {len(pages) - 1}.")
+                    print(f"Invalid index. Please enter a number between 0 and {len(page_targets) - 1}.")
             except ValueError:
                 print("Invalid input. Please enter a number.")
             except (EOFError, KeyboardInterrupt):
                 print("\nInitial tab selection cancelled by user.")
-                return False # User cancelled selection
+                return None # User cancelled selection
             except Exception as e:
                  print(f"\nAn error occurred during tab selection: {e}", file=sys.stderr)
                  await asyncio.sleep(0.1) # Avoid tight loop on unexpected errors
 
-        return False # Shutdown was triggered during selection
+        return None # Shutdown was triggered during selection
 
     async def _reload_callback(self):
         """Callback passed to the watcher to trigger page reload."""
-        if self.browser_manager and self.browser_manager.target_page:
-            # Check connection before attempting reload
-            if not self.browser_manager.is_connected:
+        # Now BrowserManager handles the single connected page directly
+        if self.browser_manager and self.browser_manager.is_connected:
+            await self.browser_manager.reload_target_page()
+        elif self.browser_manager and not self.browser_manager.is_connected:
                  print("Watcher Callback: Browser disconnected, cannot reload.", file=sys.stderr)
                  return
             await self.browser_manager.reload_target_page()
@@ -149,29 +154,30 @@ class App:
         print(f"  Using CDP port: {self.cdp_port}")
         print("-" * 20)
 
-        # 1. Get CDP Target URL
-        target_url = await self._get_cdp_target_url()
-        if not target_url:
-            print("Could not determine CDP target URL. Exiting.", file=sys.stderr)
-            return # Exit if we can't get the URL
+        # 1. Get available page targets via HTTP
+        page_targets = await self._get_page_targets()
+        if not page_targets:
+             print("Could not find any suitable page targets. Exiting.", file=sys.stderr)
+             return # Exit if no targets found
 
-        # 2. Initialize and Connect BrowserManager
-        self.browser_manager = BrowserManager(target_url, shutdown_callback=self.shutdown)
+        # 2. Prompt user to select a target page
+        selected_target_url = await self._initial_tab_selection(page_targets)
+        if not selected_target_url:
+            print("No target tab selected. Exiting.")
+            # No need to call shutdown() here as nothing is connected yet
+            return # Exit if no selection made
+
+        # 3. Initialize and Connect BrowserManager to the selected page URL
+        self.browser_manager = BrowserManager(selected_target_url, shutdown_callback=self.shutdown)
         if not await self.browser_manager.connect():
             # Error message printed by connect()
             return # Exit if connection fails
 
-        # 3. Initial Tab Selection
-        if not await self._initial_tab_selection():
-            print("No initial tab selected. Exiting.")
-            await self.shutdown() # Ensure cleanup even if no tab selected
-            return
-
-        # If we reach here, a tab is selected.
-        target_title = await self.browser_manager.target_page.title()
-        print(f"\nSuccessfully targeted tab: '{target_title}'")
+        # If we reach here, connection to the specific page is successful.
+        # We might not have the title readily available here anymore without extra calls.
+        print(f"\nSuccessfully connected to target page.")
         print(f"Watching directory '{self.watch_path}' for changes...")
-        print("Starting REPL. Type 'choose-tab' or 'exit'.")
+        print("Starting REPL. Type 'exit' to quit.") # Removed 'choose-tab'
         print("-" * 20)
 
 

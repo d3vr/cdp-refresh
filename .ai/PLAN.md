@@ -23,20 +23,20 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
     *   [X] Add **critical** instructions on how to launch Chrome/Chromium with the remote debugging port enabled (e.g., `google-chrome --remote-debugging-port=9222`).
     *   [X] Add installation instructions using `uv` (creating venv, installing dependencies).
 
-**Phase 2: Core Browser Interaction (`browser.py`)**
+**Phase 2: Core Browser Interaction (`browser.py`)** (Revised Approach)
 
-6.  [X] **Implement CDP Connection:**
-    *   [X] Create an async function `connect_to_browser(cdp_url)` that uses `playwright.chromium.connect_over_cdp()`. (Implemented within `BrowserManager.connect`)
-    *   [X] Handle potential connection errors gracefully (e.g., `playwright._impl._api_types.Error`).
-7.  [X] **Implement Tab Listing:**
-    *   [X] Create an async function `get_available_pages(browser)` that retrieves all open pages/tabs (`browser.contexts()[0].pages`). (Implemented as `BrowserManager.list_pages`)
-    *   [X] Format the output nicely (e.g., index, title, URL). (Formatting will be done in REPL/UI layer)
-8.  [X] **Implement Target Page Selection:**
-    *   [X] Store the selected `Page` object. (Stored in `BrowserManager._target_page`)
-    *   [X] Create a function `set_target_page(page)`. (Implemented as `BrowserManager.set_target_page` and `set_target_page_by_index`)
-9.  [X] **Implement Page Reload:**
-    *   [X] Create an async function `reload_target_page(page)` that calls `page.reload()`. (Implemented as `BrowserManager.reload_target_page`)
-    *   [X] Add error handling (e.g., if the page was closed).
+6.  [X] **Implement CDP Connection (to specific page):**
+    *   [X] `BrowserManager`'s `connect` method now accepts a page-specific `webSocketDebuggerUrl`.
+    *   [X] Uses `playwright.chromium.connect_over_cdp()` to connect to the single target page.
+    *   [X] Handles potential connection errors.
+7.  [ ] **Implement Tab Listing (Revised):**
+    *   [ ] `BrowserManager.list_pages` now only lists the single connected page (if successful). (Marking incomplete as behavior changed significantly)
+8.  [ ] **Implement Target Page Selection (Revised):**
+    *   [ ] Selection now happens *before* connection in `core.py` using HTTP `/json/list` endpoint.
+    *   [ ] `BrowserManager` no longer needs `set_target_page` methods. (Marking incomplete as responsibility moved)
+9.  [X] **Implement Page Reload (Revised):**
+    *   [X] `BrowserManager.reload_target_page` now reloads the single connected page obtained from `browser.contexts[0].pages[0]`.
+    *   [X] Add error handling (e.g., if the page was closed, timeout).
 
 **Phase 3: Command Line Interface & Entry Point (`cli.py`, `__main__.py`)**
 
@@ -60,34 +60,31 @@ This document outlines the steps to build the CDP Refresh tool, which monitors f
     *   [X] On detecting changes, call the provided async `callback` function.
     *   [X] Ensure it handles different change types appropriately (any change triggers reload).
 
-**Phase 5: REPL Implementation (`repl.py`)**
+**Phase 5: REPL Implementation (`repl.py`)** (Revised)
 
 15. [X] **Setup Async REPL:**
-    *   [X] Create an async function `run_repl(browser_manager)` (where `browser_manager` is an object or module providing access to browser functions like listing/selecting tabs). (Implemented in `repl.py`)
-    *   [X] Use `prompt_toolkit.PromptSession().prompt_async("> ")` in an async loop. (Implemented in `repl.py`)
-16. [X] **Implement `choose-tab` Command:**
-    *   [X] If input is `choose-tab`:
-        *   [X] Call the tab listing function from `browser.py`.
-        *   [X] Prompt the user to select a tab by index.
-        *   [X] Validate input.
-        *   [X] Call the target page selection function from `browser.py` with the chosen page.
+    *   [X] Create an async function `run_repl(browser_manager, shutdown_callback)`.
+    *   [X] Use `prompt_toolkit.PromptSession().prompt_async("> ")` in an async loop.
+16. [ ] **Implement `choose-tab` Command (Removed):**
+    *   [ ] Command removed as connection is now page-specific. (Marking incomplete as feature removed)
 17. [X] **Implement `exit` Command:**
-    *   [X] If input is `exit`, break the REPL loop or signal shutdown. (Already implemented in `run_repl`)
+    *   [X] If input is `exit`, signal shutdown and break loop.
 18. [X] **Handle Unknown Commands:**
-    *   [X] Print an informative message for unrecognized input. (Already implemented in `run_repl`)
+    *   [X] Print an informative message for unrecognized input.
 
 **Phase 6: Orchestration & Integration (`core.py`)**
 
 19. [X] **Create Core Application Class/Module:**
-    *   [X] Design a structure (e.g., an `App` class or functions in `core.py`) to hold state (connected browser, target page, watch path). (Created `App` class in `core.py`)
-20. [X] **Implement Main Async Function:**
-    *   [X] Create `async def run_app(watch_path, cdp_endpoint)`: (Implemented in `core.py`)
-        *   [X] Connect to the browser (`browser.py`). Exit if connection fails. (Implemented in `App.run`)
-        *   [X] Perform initial tab selection (call `repl.py`'s logic or a dedicated initial selection function). Exit if no tab selected. (Implemented via `App._initial_tab_selection`)
-        *   [X] Define the reload callback function (which calls `browser.reload_target_page`). (Implemented as `App._reload_callback`)
-        *   [X] Create and run the file watcher task (`watcher.py`) using `asyncio.create_task`. (Implemented in `App.run`, uses `_shutdown_event`)
-        *   [X] Create and run the REPL task (`repl.py`) using `asyncio.create_task`. (Implemented in `App.run`, uses `shutdown_callback`)
-        *   [X] Use `asyncio.gather` or similar to run tasks concurrently and wait for completion/cancellation. (Managed via `_shutdown_event.wait()` and `_tasks` set in `App.run`)
+    *   [X] Design a structure (e.g., an `App` class or functions in `core.py`) to hold state (watch path, CDP port, connected page via BrowserManager).
+20. [X] **Implement Main Async Function (Revised):**
+    *   [X] Create `async def run_app(watch_path, cdp_port)`:
+        *   [X] Fetch available page targets via HTTP (`_get_page_targets`). Exit if none found.
+        *   [X] Prompt user to select a target page (`_initial_tab_selection`). Exit if cancelled.
+        *   [X] Connect `BrowserManager` directly to the selected page's `webSocketDebuggerUrl`. Exit if connection fails.
+        *   [X] Define the reload callback function (which calls `browser_manager.reload_target_page`).
+        *   [X] Create and run the file watcher task (`watcher.py`).
+        *   [X] Create and run the REPL task (`repl.py`).
+        *   [X] Wait for shutdown signal (`_shutdown_event.wait()`).
 21. [X] **Integrate with CLI (`cli.py`):**
     *   [X] Modify the `typer` function in `cli.py` to call `core.run_app` with the parsed arguments. Use `asyncio.run()`. (Implemented in `cli.py`)
 22. [X] **Implement Graceful Shutdown:**

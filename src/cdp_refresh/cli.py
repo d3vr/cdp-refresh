@@ -149,21 +149,40 @@ async def _select_tab(client: CDPClient) -> Optional[TabInfo]:
             lines = ["<b>Available Chrome tabs (use arrow keys to navigate):</b>\n"]
             
             for i, tab in enumerate(tabs):
-                # Ensure we're working with strings and handle potential None values
-                tab_title = str(tab.title) if tab.title else "Untitled"
-                tab_url = str(tab.url) if tab.url else ""
-                
-                # Truncate long titles/URLs
-                title = tab_title[:50] + "..." if len(tab_title) > 50 else tab_title
-                url_display = tab_url[:70] + "..." if len(tab_url) > 70 else tab_url
-                
-                if i == selected_index:
-                    # Highlight selected tab
-                    lines.append(f"<b>[→] <ansiblue>{i+1}.</ansiblue> <ansiyellow>{title}</ansiyellow></b>")
-                    lines.append(f"    <ansibrightblack>{url_display}</ansibrightblack>")
-                else:
-                    lines.append(f"    <ansiblue>{i+1}.</ansiblue> {title}")
-                    lines.append(f"    <ansibrightblack>{url_display}</ansibrightblack>")
+                try:
+                    # Ensure we're working with strings and handle potential None values
+                    tab_title = str(tab.title) if tab.title else "Untitled"
+                    tab_url = str(tab.url) if tab.url else ""
+                    
+                    # Sanitize and simplify titles to avoid HTML/XML parsing issues
+                    # Only keep alphanumeric characters, spaces, and basic punctuation
+                    import re
+                    
+                    # Remove any potential HTML/XML syntax and non-printable characters
+                    title = re.sub(r'[<>&]', '', tab_title)  # Remove HTML special chars
+                    title = re.sub(r'[^\w\s.,;:!?()\[\]-]', '', title)  # Keep only safe chars
+                    title = title[:50] + "..." if len(title) > 50 else title
+                    
+                    # Similar sanitization for URLs but simplified for display
+                    url_simple = re.sub(r'[^\w\s./:?&=-]', '', tab_url)  # Keep URL-related chars
+                    url_display = url_simple[:70] + "..." if len(url_simple) > 70 else url_simple
+                    
+                    if i == selected_index:
+                        # Highlight selected tab
+                        lines.append(f"<b>[→] <ansiblue>{i+1}.</ansiblue> <ansiyellow>{title}</ansiyellow></b>")
+                        lines.append(f"    <ansibrightblack>{url_display}</ansibrightblack>")
+                    else:
+                        lines.append(f"    <ansiblue>{i+1}.</ansiblue> {title}")
+                        lines.append(f"    <ansibrightblack>{url_display}</ansibrightblack>")
+                except Exception as tab_error:
+                    # Handle any errors with a single tab
+                    if DEBUG_MODE:
+                        logger.warning(f"Error formatting tab {i}: {tab_error}")
+                    # Add safe fallback display
+                    if i == selected_index:
+                        lines.append(f"<b>[→] <ansiblue>{i+1}.</ansiblue> <ansiyellow>Tab {i+1}</ansiyellow></b>")
+                    else:
+                        lines.append(f"    <ansiblue>{i+1}.</ansiblue> Tab {i+1}")
             
             return "\n".join(lines)
         
@@ -194,6 +213,9 @@ async def _select_tab(client: CDPClient) -> Optional[TabInfo]:
         # Display initial tabs
         console.print(Panel("Loading Chrome tabs...", style="bold green"))
         
+        # Small delay to ensure everything is initialized properly
+        await asyncio.sleep(0.2)
+        
         # Run app
         await asyncio.create_task(app.run_async())
         
@@ -206,7 +228,15 @@ async def _select_tab(client: CDPClient) -> Optional[TabInfo]:
         
         return selected_tab
     except Exception as e:
-        logger.error(f"Error with interactive tab selection: {e}")
+        # Get detailed error info
+        import traceback
+        error_details = traceback.format_exc()
+        
+        if DEBUG_MODE:
+            logger.error(f"Detailed error with interactive tab selection:\n{error_details}")
+        else:
+            logger.error(f"Error with interactive tab selection: {e}")
+            
         logger.info("Falling back to simple tab selection...")
         
         # Fall back to the simpler selection method

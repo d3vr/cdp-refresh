@@ -138,14 +138,9 @@ class App:
         # Now BrowserManager handles the single connected page directly
         if self.browser_manager and self.browser_manager.is_connected:
             await self.browser_manager.reload_target_page()
-        elif self.browser_manager and not self.browser_manager.is_connected:
-                 print("Watcher Callback: Browser disconnected, cannot reload.", file=sys.stderr)
-                 return
-            await self.browser_manager.reload_target_page()
-        elif self.browser_manager and not self.browser_manager.target_page:
-             # This might happen if the target tab was closed and not re-selected
-             print("Watcher Callback: File change detected, but no target tab is selected.", file=sys.stderr)
-        # else: browser_manager might not be initialized (shouldn't happen here)
+        elif self.browser_manager: # Check if it exists but is not connected
+             print("Watcher Callback: Browser disconnected, cannot reload.", file=sys.stderr)
+        # else: browser_manager is None (shouldn't happen if run() completed successfully)
 
     async def run(self):
         """Runs the main application logic: connect, select tab, start tasks."""

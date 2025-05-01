@@ -386,8 +386,8 @@ def watch(
             if not tab:
                 return
             
-            # Connect to tab
-            await client.connect(tab.websocket_url)
+            # Connect to tab, passing the tab info
+            await client.connect(tab.websocket_url, tab=tab)
             
             # Create REPL first so we can use its file change handler
             repl = REPL(client, watcher=None)  # We'll set the watcher later

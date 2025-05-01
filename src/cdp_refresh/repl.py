@@ -77,6 +77,10 @@ class REPL:
                 "handler": self._cmd_reload,
                 "help": "Reload the current page",
             },
+            "select-tab": {
+                "handler": self._cmd_select_tab,
+                "help": "Select a different tab to refresh",
+            },
             "info": {
                 "handler": self._cmd_info,
                 "help": "Show current session info",
@@ -235,11 +239,47 @@ class REPL:
             console.print(f"[red]Error reloading page: {e}[/]")
             self.refresh_event.set()  # Still set the event to return to prompt
     
+    async def _cmd_select_tab(self) -> None:
+        """Select a different tab to refresh."""
+        from cdp_refresh.cli import _select_tab
+        
+        console.print("[bold cyan]Querying Chrome for available tabs...[/]")
+        
+        try:
+            # Disconnect from current tab first
+            if hasattr(self.client, 'disconnect'):
+                await self.client.disconnect()
+                
+            # Use the select_tab function from cli.py
+            tab = await _select_tab(self.client)
+            
+            if tab:
+                # Connect to the new tab, passing the tab info
+                await self.client.connect(tab.websocket_url, tab=tab)
+                console.print(f"[bold green]Now refreshing tab:[/] [cyan]{tab.title}[/]")
+            else:
+                # If tab selection was cancelled, reconnect to the previous tab
+                console.print("[yellow]Tab selection cancelled.[/]")
+                
+                # Try to reconnect to previous tab if we have one
+                if hasattr(self.client, 'current_tab') and self.client.current_tab:
+                    previous_tab = self.client.current_tab
+                    await self.client.connect(previous_tab.websocket_url, tab=previous_tab)
+                    console.print(f"[yellow]Reconnected to previous tab:[/] [cyan]{previous_tab.title}[/]")
+        except Exception as e:
+            console.print(f"[red]Error selecting tab: {e}[/]")
+    
     async def _cmd_info(self) -> None:
         """Show current session info."""
         console.print("[bold cyan]Session info:[/]")
         console.print(f"  Watching directory: [yellow]{self.watcher.path}[/]")
         console.print(f"  Chrome connection: [yellow]{self.client.base_url}[/]")
+        
+        # Show current tab if available
+        if hasattr(self.client, 'current_tab') and self.client.current_tab:
+            tab = self.client.current_tab
+            console.print(f"  Current tab: [yellow]{tab.title}[/]")
+            console.print(f"  Tab URL: [dim]{tab.url}[/]")
     
     async def _cmd_exit(self) -> None:
         """Exit the program."""

@@ -35,6 +35,7 @@ class CDPClient:
         self.base_url = f"http://{host}:{port}"
         self.ws_connection: Optional[websockets.WebSocketClientProtocol] = None
         self.message_id = 0
+        self.current_tab: Optional[TabInfo] = None  # Track current tab
     
     async def get_tabs(self) -> List[TabInfo]:
         """Get list of available Chrome tabs.
@@ -92,11 +93,12 @@ class CDPClient:
             raise Exception(f"Unable to connect to Chrome at {self.base_url}. "
                            f"Make sure Chrome is running with remote debugging enabled.") from e
     
-    async def connect(self, websocket_url: str) -> None:
+    async def connect(self, websocket_url: str, tab: Optional[TabInfo] = None) -> None:
         """Connect to a Chrome tab via WebSocket.
         
         Args:
             websocket_url: WebSocket URL for the tab
+            tab: Tab information (optional)
             
         Raises:
             Exception: If connection fails
@@ -104,6 +106,22 @@ class CDPClient:
         try:
             self.ws_connection = await websockets.connect(websocket_url)
             logger.info(f"Connected to Chrome tab via WebSocket: {websocket_url}")
+            
+            # Store the current tab info if provided
+            if tab:
+                self.current_tab = tab
+            # Otherwise try to find the tab from websocket_url
+            elif not self.current_tab or self.current_tab.websocket_url != websocket_url:
+                try:
+                    tabs = await self.get_tabs()
+                    for t in tabs:
+                        if t.websocket_url == websocket_url:
+                            self.current_tab = t
+                            break
+                except Exception:
+                    # If we can't get the tab info, that's fine
+                    pass
+                
         except Exception as e:
             logger.error(f"Failed to connect to Chrome tab: {e}")
             raise Exception(f"Unable to connect to Chrome tab via WebSocket: {e}") from e
@@ -123,6 +141,7 @@ class CDPClient:
             finally:
                 # Ensure the connection is marked as closed
                 self.ws_connection = None
+                # Don't clear current_tab as we might reconnect to it
     
     async def reload_page(self) -> None:
         """Reload the current page."""

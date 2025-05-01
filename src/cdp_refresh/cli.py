@@ -389,12 +389,14 @@ def watch(
             # Connect to tab
             await client.connect(tab.websocket_url)
             
-            # Setup file watcher
-            async def on_change() -> None:
-                console.print("[yellow]Files changed, reloading page...[/]")
-                await client.reload_page()
+            # Create REPL first so we can use its file change handler
+            repl = REPL(client, watcher=None)  # We'll set the watcher later
             
-            watcher = FileWatcher(path, on_change)
+            # Setup file watcher with REPL's file change handler
+            watcher = FileWatcher(path, repl.handle_file_change)
+            
+            # Now set the watcher in the REPL
+            repl.watcher = watcher
             
             # Show start message
             console.print(Panel.fit(
@@ -407,7 +409,7 @@ def watch(
             ))
             
             # Start REPL and watcher with proper error handling
-            repl = REPL(client, watcher)
+            # repl is already created above
             repl_task = asyncio.create_task(repl.start())
             watcher_task = asyncio.create_task(watcher.start())
             

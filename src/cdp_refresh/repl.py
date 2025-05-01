@@ -67,6 +67,7 @@ class REPL:
         self.client = client
         self.watcher = watcher
         self.running = False
+        self.refresh_event = asyncio.Event()  # Event to signal file changes
         self.commands: Dict[str, Dict] = {
             "help": {
                 "handler": self._cmd_help,
@@ -131,19 +132,54 @@ class REPL:
         Returns:
             User input string
         """
+        while True:
+            try:
+                # Create a task for the prompt
+                prompt_task = asyncio.create_task(self._prompt_user())
+                
+                # Wait for either input or a file change event
+                refresh_task = asyncio.create_task(self.refresh_event.wait())
+                
+                done, pending = await asyncio.wait(
+                    [prompt_task, refresh_task],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # Cancel any pending tasks
+                for task in pending:
+                    task.cancel()
+                
+                # Check which task completed
+                if prompt_task in done:
+                    # User input was received
+                    self.refresh_event.clear()  # Reset the event
+                    return await prompt_task
+                else:
+                    # File change event occurred, clear it and try again
+                    self.refresh_event.clear()
+                    # Print a blank line after refresh message for better readability
+                    console.print("")
+                    continue
+                    
+            except Exception as e:
+                logger.error(f"Error getting input: {e}")
+                return ""
+    
+    async def _prompt_user(self) -> str:
+        """Get user input using prompt_toolkit.
+        
+        Returns:
+            User input string
+        """
         try:
             # Try to use prompt_toolkit for tab completion
-            try:
-                result = await self.session.prompt_async("cdp-refresh> ")
-                return result.strip()
-            except AttributeError:
-                # Fallback to basic input if prompt_toolkit has issues
-                logger.warning("Falling back to basic input (no tab completion)")
-                loop = asyncio.get_event_loop()
-                return await loop.run_in_executor(None, lambda: console.input("[bold green]cdp-refresh>[/] ").strip())
-        except Exception as e:
-            logger.error(f"Error getting input: {e}")
-            return ""
+            result = await self.session.prompt_async("cdp-refresh> ")
+            return result.strip()
+        except AttributeError:
+            # Fallback to basic input if prompt_toolkit has issues
+            logger.warning("Falling back to basic input (no tab completion)")
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, lambda: console.input("[bold green]cdp-refresh>[/] ").strip())
     
     async def _process_command(self, command: str) -> None:
         """Process a command.
@@ -184,6 +220,20 @@ class REPL:
             await self.client.reload_page()
         except Exception as e:
             console.print(f"[red]Error reloading page: {e}[/]")
+            
+    async def handle_file_change(self) -> None:
+        """Handle file change event and set the refresh event.
+        
+        This method is called by the watcher when files change.
+        """
+        console.print("[yellow]Files changed, reloading page...[/]")
+        try:
+            await self.client.reload_page()
+            # Signal that a refresh has occurred
+            self.refresh_event.set()
+        except Exception as e:
+            console.print(f"[red]Error reloading page: {e}[/]")
+            self.refresh_event.set()  # Still set the event to return to prompt
     
     async def _cmd_info(self) -> None:
         """Show current session info."""

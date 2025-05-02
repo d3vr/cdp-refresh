@@ -1,48 +1,133 @@
-# CDP Refresh Tool
+# CDP Refresh
 
-A simple Python tool that connects to a running Chrome/Chromium instance via the Chrome DevTools Protocol (CDP). It watches a specified local directory for file changes and automatically reloads a selected browser tab.
+A developer tool that watches for file changes in your project directory and automatically refreshes the selected Chrome tab using Chrome DevTools Protocol (CDP).
 
-Useful for web development workflows where you want instant browser refresh upon saving file changes, without needing browser extensions or complex build tools.
+## Features
+
+- Watch files for changes and automatically refresh browser
+- Interactive command-line interface with tab completion
+- Select which Chrome tab to refresh
+- Support for standard gitignore patterns
+- Custom file ignore patterns
+- Cross-platform support (Windows, macOS, Linux)
 
 ## Prerequisites
 
-1.  **Python:** Version 3.11 or higher.
-2.  **uv:** The `uv` package manager. Install from [Astral](https://github.com/astral-sh/uv).
-3.  **Running Chrome/Chromium with Remote Debugging:** You **must** launch your browser with the remote debugging port enabled _before_ running this tool. The method varies by OS:
-    - **Linux:**
-      ```bash
-      google-chrome --remote-debugging-port=9222
-      # or
-      chromium-browser --remote-debugging-port=9222
-      ```
-    - **macOS:**
-      ```bash
-      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222
-      ```
-    - **Windows:**
-      ```bash
-      "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
-      # Adjust the path if Chrome is installed elsewhere
-      ```
-    - You can choose a different port, but you'll need to pass it to the tool using the `--cdp-port` option. The default is `9222`.
+1. **Python:** Version 3.11 or higher
+2. **Chrome/Chromium with Remote Debugging:** Launch your browser with remote debugging enabled:
+   ```bash
+   # Linux
+   google-chrome --remote-debugging-port=9222
+   
+   # macOS
+   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222
+   
+   # Windows
+   "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
+   ```
 
 ## Installation
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <your-repo-url>
-    cd cdp-refresh
-    ```
-2.  **Create and activate a virtual environment using `uv`:**
-    ```bash
-    uv venv
-    source .venv/bin/activate # Linux/macOS
-    # .venv\Scripts\activate # Windows (cmd)
-    # .venv\Scripts\Activate.ps1 # Windows (PowerShell)
-    ```
-3.  **Install the package and its dependencies:**
-    ```bash
-    uv pip install -e .
-    ```
+```bash
+# Install with pip
+pip install cdp-refresh
 
-## Usage (Planned)
+# Or install in development mode
+git clone <repo-url>
+cd cdp-refresh
+uv venv && source .venv/bin/activate
+uv pip install -e .
+```
+
+## Usage
+
+Run CDP Refresh and select a tab to refresh:
+
+```bash
+cdp-refresh /path/to/watch
+```
+
+### Command-line Options
+
+```
+Arguments:
+  PATH                      Directory to watch for changes [default: .]
+
+Options:
+  -h, --host TEXT           Chrome host [default: localhost]
+  -p, --port INTEGER        Chrome debugging port [default: 9222]
+  -i, --ignore TEXT         Ignore pattern (can be used multiple times)
+  --no-git-ignore           Disable using .gitignore patterns
+  -v, --verbose             Enable verbose logging
+  -d, --debug               Enable debug mode with detailed error information
+  --help                    Show this message and exit
+```
+
+### Interactive Commands
+
+Once running, you can use these commands:
+- `help` - Show available commands
+- `reload` - Manually reload the current page
+- `select-tab` - Select a different tab to refresh
+- `info` - Show current session info
+- `exit` or `quit` - Exit the program
+
+## Architecture
+
+CDP Refresh is built with an asynchronous architecture using Python's asyncio:
+
+- **CLI Module**: Entry point and argument handling
+- **Core Module**: Chrome DevTools Protocol client for browser interaction
+- **REPL Module**: Interactive command interface with tab completion
+- **Watcher Module**: File system monitoring and change detection
+- **Browser Module**: Cross-platform Chrome detection utilities
+
+## Libraries
+
+| Library | Purpose |
+|---------|---------|
+| Typer | Command-line interface argument parsing |
+| Rich | Terminal formatting and output styling |
+| prompt_toolkit | Interactive REPL with tab completion |
+| watchfiles | Fast file system monitoring |
+| websockets | WebSocket communication with Chrome DevTools Protocol |
+| httpx | HTTP client for Chrome DevTools Protocol API |
+| pydantic | Data validation for Chrome tab information |
+
+## Contributing
+
+Contributions are welcome! Here's how to contribute:
+
+1. Set up development environment:
+   ```bash
+   git clone <repo-url>
+   cd cdp-refresh
+   uv venv && source .venv/bin/activate
+   uv pip install -e .
+   ```
+
+2. Ensure your changes pass all checks:
+   ```bash
+   # Type checking
+   mypy src/
+   
+   # Linting
+   ruff check src/
+   
+   # Formatting
+   ruff format src/
+   ```
+
+3. Follow code style guidelines:
+   - Use type hints for all function parameters and return values
+   - Follow PEP8 naming conventions
+   - Line length ≤ 88 characters
+   - Use f-strings for string formatting
+   - Include docstrings for modules, classes, and functions
+   - Use specific exceptions and handle browser connection errors gracefully
+
+4. Submit a pull request with your changes
+
+## License
+
+[MIT License](LICENSE)

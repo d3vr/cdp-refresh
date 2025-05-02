@@ -367,10 +367,12 @@ class REPL:
             if hasattr(self, "client") and self.client:
                 await self.client.disconnect()
 
-            # Simplify task cancellation to avoid potential issues
-            # Force exit immediately - the parent CLI handler will clean up tasks
-            sys.exit(0)
+            # Signal watcher to stop but don't try to cancel any tasks from here
+            # Let the parent CLI handler clean up tasks
+            if hasattr(self, "watcher") and self.watcher:
+                self.watcher.stop()
+
+            # Just return to exit the REPL loop naturally
+            return
         except Exception as e:
             logger.error(f"Error during exit: {e}")
-            # Force exit even if there's an error
-            sys.exit(1)

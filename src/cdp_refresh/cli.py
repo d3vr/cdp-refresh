@@ -436,11 +436,20 @@ def watch(
             repl_task.add_done_callback(task_done)
             watcher_task.add_done_callback(task_done)
 
+            # Instead of trying to use asyncio.wait() which can lead to cancellation issues,
+            # use a simpler approach: just await the REPL task directly
             try:
-                # Wait for both tasks to complete or for a keyboard interrupt
-                await asyncio.gather(repl_task, watcher_task)
+                # The REPL task will complete when the user chooses to exit
+                await repl_task
+
+                # Once REPL is done, cancel the watcher task and clean up
+                logger.debug("REPL task completed, cancelling watcher task")
+                watcher_task.cancel()
+
+                # No need to wait for it explicitly - the finally block will handle cleanup
             except asyncio.CancelledError:
-                # Propagate cancellation
+                # If we're cancelled (e.g., by Ctrl+C), just propagate
+                logger.debug("Main task cancelled")
                 raise
 
         except KeyboardInterrupt:

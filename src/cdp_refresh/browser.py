@@ -45,7 +45,7 @@ def find_chrome() -> Optional[Path]:
     """
     for path in get_chrome_paths():
         if path.exists():
-            logger.info(f"Found Chrome at: {path}")
+            logger.debug(f"Found Chrome at: {path}")
             return path
     
     logger.warning("Chrome not found in standard locations")

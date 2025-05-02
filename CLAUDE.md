@@ -20,3 +20,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Comments**: Include docstrings for modules, classes, and functions.
 - **Browser Interaction**: Abstract CDP operations to make browser interaction more maintainable.
 - **File Watching**: Implement robust error handling for file system operations.
+- No need to check types from now on
